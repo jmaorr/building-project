@@ -4,6 +4,7 @@ import { getProject, getProjectPhases, getPhaseStages } from "@/lib/actions/proj
 import { PageHeader } from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/projects/status-badge";
+import { resolvePhaseFromSlug } from "@/lib/utils/slug";
 import {
   Accordion,
   AccordionContent,
@@ -17,12 +18,6 @@ interface StagesPageProps {
   params: Promise<{ id: string; phaseSlug: string }>;
 }
 
-const slugToPhaseName: Record<string, string> = {
-  design: "Design",
-  build: "Build",
-  certification: "Certification",
-};
-
 export default async function StagesPage({ params }: StagesPageProps) {
   const { id, phaseSlug } = await params;
   const [project, phases] = await Promise.all([
@@ -34,8 +29,7 @@ export default async function StagesPage({ params }: StagesPageProps) {
     notFound();
   }
 
-  const phaseName = slugToPhaseName[phaseSlug];
-  const phase = phases.find((p) => p.name === phaseName);
+  const phase = resolvePhaseFromSlug(phases, phaseSlug);
   
   if (!phase) {
     notFound();

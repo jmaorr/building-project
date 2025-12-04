@@ -1,14 +1,16 @@
 "use server";
 
-import type { 
-  Contact, 
-  NewContact, 
-  ContactRole, 
-  ProjectContact, 
+import type {
+  Contact,
+  NewContact,
+  ContactRole,
+  ProjectContact,
   PermissionLevel,
-  UserType 
+  UserType
 } from "@/lib/db/schema";
 import { defaultContactRoles } from "@/lib/db/seed";
+
+const DEFAULT_ORG_ID = process.env.NEXT_PUBLIC_DEFAULT_ORG_ID || "org-1";
 
 // =============================================================================
 // MOCK DATA STORE (Replace with D1 database operations in production)
@@ -129,9 +131,10 @@ export async function getContacts(filters?: {
   orgId?: string;
 }): Promise<Contact[]> {
   let filtered = [...mockContacts];
-  
-  if (filters?.orgId) {
-    filtered = filtered.filter(c => c.orgId === filters.orgId);
+
+  const orgFilter = filters?.orgId || DEFAULT_ORG_ID;
+  if (orgFilter) {
+    filtered = filtered.filter(c => c.orgId === orgFilter);
   }
   
   if (filters?.search) {
@@ -168,7 +171,7 @@ export async function getContactsByEmail(email: string): Promise<Contact[]> {
 export async function createContact(data: Omit<NewContact, "id" | "createdAt" | "updatedAt">): Promise<Contact> {
   const contact: Contact = {
     id: `contact-${Date.now()}`,
-    orgId: data.orgId,
+    orgId: data.orgId || DEFAULT_ORG_ID,
     userId: data.userId || null,
     name: data.name,
     email: data.email || null,
@@ -285,7 +288,8 @@ export async function linkUserToContact(contactId: string, userId: string): Prom
 
 export async function getContactRoles(orgId?: string): Promise<ContactRole[]> {
   // Return system roles plus org-specific roles
-  return mockContactRoles.filter(r => r.orgId === null || r.orgId === orgId);
+  const resolvedOrg = orgId || DEFAULT_ORG_ID;
+  return mockContactRoles.filter(r => r.orgId === null || r.orgId === resolvedOrg);
 }
 
 export async function createContactRole(data: {

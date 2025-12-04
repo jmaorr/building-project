@@ -1,16 +1,10 @@
 import { redirect } from "next/navigation";
 import { getProject, getProjectPhases, getPhase } from "@/lib/actions/projects";
+import { createPhaseSlug } from "@/lib/utils/slug";
 
 interface PhasePageProps {
   params: Promise<{ id: string; phaseId: string }>;
 }
-
-// Map phase names to slugs
-const phaseSlugs: Record<string, string> = {
-  Design: "design",
-  Build: "build",
-  Certification: "certification",
-};
 
 export default async function PhasePage({ params }: PhasePageProps) {
   const { id, phaseId } = await params;
@@ -25,6 +19,6 @@ export default async function PhasePage({ params }: PhasePageProps) {
   }
 
   // Redirect to the new slug-based route
-  const slug = phaseSlugs[phase.name] || phase.name.toLowerCase();
+  const slug = createPhaseSlug(phase);
   redirect(`/projects/${id}/${slug}`);
 }

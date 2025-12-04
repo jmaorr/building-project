@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import { Bell } from "lucide-react";
-import { UserButton, SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import {
+  UserButton,
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  OrganizationSwitcher,
+} from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -28,6 +34,17 @@ export function Header({ className }: HeaderProps) {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2">
+        <SignedIn>
+          <OrganizationSwitcher
+            appearance={{
+              elements: {
+                rootBox: "hidden sm:flex", // hide on very small screens in header
+                organizationSwitcherTrigger: "border-border bg-muted hover:bg-muted/80",
+              },
+            }}
+          />
+        </SignedIn>
+
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="h-8 w-8">
           <Bell className="h-4 w-4" />

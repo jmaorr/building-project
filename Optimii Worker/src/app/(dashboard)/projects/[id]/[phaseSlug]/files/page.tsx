@@ -13,16 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { resolvePhaseFromSlug } from "@/lib/utils/slug";
 
 interface MasterFilesPageProps {
   params: Promise<{ id: string; phaseSlug: string }>;
 }
-
-const slugToPhaseName: Record<string, string> = {
-  design: "Design",
-  build: "Build",
-  certification: "Certification",
-};
 
 export default async function MasterFilesPage({ params }: MasterFilesPageProps) {
   const { id, phaseSlug } = await params;
@@ -35,8 +30,7 @@ export default async function MasterFilesPage({ params }: MasterFilesPageProps) 
     notFound();
   }
 
-  const phaseName = slugToPhaseName[phaseSlug];
-  const phase = phases.find((p) => p.name === phaseName);
+  const phase = resolvePhaseFromSlug(phases, phaseSlug);
   
   if (!phase) {
     notFound();
@@ -69,7 +63,7 @@ export default async function MasterFilesPage({ params }: MasterFilesPageProps) 
         <div>
           <h2 className="text-lg font-semibold">Files</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            All documents uploaded across {phaseName.toLowerCase()} stages
+            All documents uploaded across {phase.name.toLowerCase()} stages
           </p>
         </div>
         <Button size="sm">

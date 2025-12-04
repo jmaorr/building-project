@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/projects/status-badge";
 import { AddStageDialog } from "@/components/stages";
+import { resolvePhaseFromSlug } from "@/lib/utils/slug";
 import { 
   ChevronRight, 
   Layers, 
@@ -21,12 +22,6 @@ interface PhaseDashboardPageProps {
   params: Promise<{ id: string; phaseSlug: string }>;
 }
 
-const slugToPhaseName: Record<string, string> = {
-  design: "Design",
-  build: "Build",
-  certification: "Certification",
-};
-
 export default async function PhaseDashboardPage({ params }: PhaseDashboardPageProps) {
   const { id, phaseSlug } = await params;
   const [project, phases] = await Promise.all([
@@ -38,8 +33,7 @@ export default async function PhaseDashboardPage({ params }: PhaseDashboardPageP
     notFound();
   }
 
-  const phaseName = slugToPhaseName[phaseSlug];
-  const phase = phases.find((p) => p.name === phaseName);
+  const phase = resolvePhaseFromSlug(phases, phaseSlug);
   
   if (!phase) {
     notFound();

@@ -7,38 +7,50 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getContacts } from "@/lib/actions/contacts";
+import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
+import { getSystemStatus } from "@/lib/status/system-status";
+import { SystemStatusBanner } from "@/components/status/system-status-banner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CardGridSkeleton } from "@/components/ui/card-grid-skeleton";
 
 interface SearchParams {
   search?: string;
 }
 
-async function ContactList({ searchParams }: { searchParams: SearchParams }) {
+async function ContactList({
+  searchParams,
+  orgId,
+}: {
+  searchParams: SearchParams;
+  orgId: string;
+}) {
   const contacts = await getContacts({
     search: searchParams.search,
-    orgId: "org-1", // TODO: Get from context
+    orgId,
   });
 
   if (contacts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <Search className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-medium mb-1">No contacts found</h3>
-        <p className="text-muted-foreground text-center mb-4">
-          {searchParams.search
+      <EmptyState
+        icon={<Search className="h-8 w-8" />}
+        title="No contacts found"
+        description={
+          searchParams.search
             ? "Try adjusting your search"
-            : "Add your first contact to get started"}
-        </p>
-        {!searchParams.search && (
-          <Button asChild>
-            <Link href="/contacts/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Contact
-            </Link>
-          </Button>
-        )}
-      </div>
+            : "Add your first contact to get started"
+        }
+        action={
+          !searchParams.search ? (
+            <Button asChild>
+              <Link href="/contacts/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Contact
+              </Link>
+            </Button>
+          ) : null
+        }
+        className="py-16"
+      />
     );
   }
 
@@ -90,13 +102,7 @@ async function ContactList({ searchParams }: { searchParams: SearchParams }) {
 }
 
 function ContactListSkeleton() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <div key={i} className="h-36 rounded-lg border bg-card animate-pulse" />
-      ))}
-    </div>
-  );
+  return <CardGridSkeleton heightClassName="h-36" />;
 }
 
 export default async function ContactsPage({
@@ -105,6 +111,10 @@ export default async function ContactsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const [organization, systemStatus] = await Promise.all([
+    getActiveOrganization(),
+    getSystemStatus(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -132,9 +142,11 @@ export default async function ContactsPage({
         />
       </form>
 
+      <SystemStatusBanner status={systemStatus} />
+
       {/* Contact Grid */}
       <Suspense fallback={<ContactListSkeleton />}>
-        <ContactList searchParams={params} />
+        <ContactList searchParams={params} orgId={organization.id} />
       </Suspense>
     </div>
   );

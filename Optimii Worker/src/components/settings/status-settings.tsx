@@ -61,6 +61,7 @@ import {
   resetOrgConfigsToDefaults,
 } from "@/lib/actions/status-configs";
 import type { StatusConfig } from "@/lib/db/schema";
+import { useOrganization } from "@/components/providers";
 
 const COLORS = [
   { value: "gray", label: "Gray", className: "bg-gray-500/10 text-gray-600" },
@@ -79,7 +80,8 @@ interface StatusSettingsProps {
   projectName?: string;
 }
 
-export function StatusSettings({ orgId = "org-1", projectId, projectName }: StatusSettingsProps) {
+export function StatusSettings({ orgId, projectId, projectName }: StatusSettingsProps) {
+  const { id: activeOrgId } = useOrganization();
   const router = useRouter();
   const [configs, setConfigs] = useState<StatusConfig[]>([]);
   const [entityType, setEntityType] = useState<"stage" | "project" | "phase">("stage");
@@ -108,7 +110,7 @@ export function StatusSettings({ orgId = "org-1", projectId, projectName }: Stat
   const loadConfigs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getStatusConfigs({ entityType, projectId, orgId });
+      const data = await getStatusConfigs({ entityType, projectId, orgId: orgId || activeOrgId });
       setConfigs(data);
       // Check if we have custom configs (org or project level)
       setHasCustomConfigs(data.some(c => c.orgId !== null || c.projectId !== null));
@@ -117,7 +119,7 @@ export function StatusSettings({ orgId = "org-1", projectId, projectName }: Stat
     } finally {
       setIsLoading(false);
     }
-  }, [entityType, projectId, orgId]);
+  }, [activeOrgId, entityType, projectId, orgId]);
 
   useEffect(() => {
     loadConfigs();
@@ -142,11 +144,11 @@ export function StatusSettings({ orgId = "org-1", projectId, projectName }: Stat
     
     // If using system configs, copy them to org first
     if (!hasCustomConfigs) {
-      await copySystemConfigsToOrg(orgId, entityType);
+      await copySystemConfigsToOrg(orgId || activeOrgId, entityType);
     }
     
     const result = await createStatusConfig({
-      orgId: projectId ? undefined : orgId,
+      orgId: projectId ? undefined : (orgId || activeOrgId),
       projectId,
       entityType,
       code: newCode.toLowerCase().replace(/\s+/g, "_"),
@@ -179,13 +181,13 @@ export function StatusSettings({ orgId = "org-1", projectId, projectName }: Stat
   };
 
   const handleReset = async () => {
-    await resetOrgConfigsToDefaults(orgId, entityType);
+    await resetOrgConfigsToDefaults(orgId || activeOrgId, entityType);
     loadConfigs();
     setShowResetConfirm(false);
   };
 
   const handleCustomize = async () => {
-    await copySystemConfigsToOrg(orgId, entityType);
+    await copySystemConfigsToOrg(orgId || activeOrgId, entityType);
     loadConfigs();
   };
 
