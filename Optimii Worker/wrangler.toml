@@ -1,0 +1,53 @@
+# Cloudflare Worker configuration for Optimii
+name = "optimii"
+main = ".open-next/worker.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Re-enable minification 
+minify = true
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "optimii-db"
+database_id = "f02c7b0d-a73d-41bf-ba82-02d45a91829c"
+migrations_dir = "drizzle"
+
+# Static assets binding
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# R2 Bucket for file storage
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "optimii-files"
+
+# Environment variables (secrets should be set via Cloudflare dashboard)
+[vars]
+NODE_ENV = "production"
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_YWRhcHRlZC1qYWNrYWwtMzAuY2xlcmsuYWNjb3VudHMuZGV2JA"
+NEXT_PUBLIC_CLERK_SIGN_IN_URL = "/sign-in"
+NEXT_PUBLIC_CLERK_SIGN_UP_URL = "/sign-up"
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL = "/"
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL = "/"
+
+# Observability configuration for logging and debugging
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
+
+
+
