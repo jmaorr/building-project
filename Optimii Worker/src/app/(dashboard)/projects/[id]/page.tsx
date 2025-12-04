@@ -13,13 +13,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/projects/status-badge";
-import { 
-  getProject, 
-  getProjectPhases, 
-  getProjectStats 
+import {
+  getProject,
+  getProjectPhases,
+  getProjectStats
 } from "@/lib/actions/projects";
 import { calculateProjectProgress } from "@/lib/utils/project-utils";
 import { getProjectContacts } from "@/lib/actions/contacts";
+import { createPhaseSlug } from "@/lib/utils/slug";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -163,7 +164,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           
           <div className="space-y-2">
             {phases.map((phase, index) => {
-              const phaseSlug = phase.name.toLowerCase();
+              const phaseSlug = createPhaseSlug(phase);
               return (
                 <Link
                   key={phase.id}

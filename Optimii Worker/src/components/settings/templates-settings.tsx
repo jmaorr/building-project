@@ -64,6 +64,7 @@ import {
   reorderTemplateModules,
 } from "@/lib/actions/templates";
 import { defaultModuleTypes } from "@/lib/db/seed";
+import { useOrganization } from "@/components/providers";
 
 type ModuleWithType = TemplateModule & { moduleType: typeof defaultModuleTypes[number] };
 type PhaseWithModules = TemplatePhase & { modules: ModuleWithType[] };
@@ -73,6 +74,7 @@ type TemplateDetail = {
 };
 
 export function TemplatesSettings() {
+  const { id: orgId } = useOrganization();
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -96,12 +98,12 @@ export function TemplatesSettings() {
   // Load templates
   useEffect(() => {
     loadTemplates();
-  }, []);
+  }, [orgId]);
 
   async function loadTemplates() {
     setLoading(true);
     try {
-      const orgTemplates = await getOrgTemplates("org-1");
+      const orgTemplates = await getOrgTemplates(orgId);
       setTemplates(orgTemplates);
     } catch (error) {
       console.error("Error loading templates:", error);
@@ -720,6 +722,7 @@ export function TemplatesSettings() {
       <CreateTemplateDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
+        orgId={orgId}
         onCreated={async (id) => {
           await loadTemplates();
           setSelectedTemplate(id);
@@ -837,7 +840,7 @@ function TemplatePreview({ phases }: { phases: PhaseWithModules[] }) {
 // Create Template Dialog
 // =============================================================================
 
-function CreateTemplateDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (id: string) => void }) {
+function CreateTemplateDialog({ open, onOpenChange, onCreated, orgId }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (id: string) => void; orgId: string }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -848,7 +851,7 @@ function CreateTemplateDialog({ open, onOpenChange, onCreated }: { open: boolean
 
     setIsSubmitting(true);
     try {
-      const template = await createTemplate("org-1", {
+      const template = await createTemplate(orgId, {
         name: name.trim(),
         description: description.trim() || undefined,
         phases: [

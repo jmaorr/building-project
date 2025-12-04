@@ -45,12 +45,8 @@ import { getProject, getProjectPhases, getPhaseStages } from "@/lib/actions/proj
 import { getProjectContacts } from "@/lib/actions/contacts";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import type { Stage, Contact } from "@/lib/db/schema";
+import { resolvePhaseFromSlug } from "@/lib/utils/slug";
 
-const slugToPhaseName: Record<string, string> = {
-  design: "Design",
-  build: "Build",
-  certification: "Certification",
-};
 
 type FilterType = "all" | "stage-linked" | "general";
 
@@ -94,8 +90,7 @@ export default function PaymentsPage() {
       setProjectId(project.id);
       setCurrentUserId(user.id);
 
-      const phaseName = slugToPhaseName[phaseSlug];
-      const currentPhase = phases.find((p) => p.name === phaseName);
+      const currentPhase = resolvePhaseFromSlug(phases, phaseSlug);
 
       if (!currentPhase) {
         return;

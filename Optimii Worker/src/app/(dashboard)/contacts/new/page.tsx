@@ -9,17 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createContact } from "@/lib/actions/contacts";
+import { useOrganization } from "@/components/providers";
 
 export default function NewContactPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { id: orgId } = useOrganization();
 
   async function handleSubmit(formData: FormData) {
     setIsSubmitting(true);
     
     try {
       const contact = await createContact({
-        orgId: "org-1", // TODO: Get from context
+        orgId,
         name: formData.get("name") as string,
         email: formData.get("email") as string || undefined,
         phone: formData.get("phone") as string || undefined,

@@ -16,16 +16,28 @@ import { ProjectCard } from "@/components/projects/project-card";
 import { getProjects, getProjectPhases } from "@/lib/actions/projects";
 import { calculateProjectProgress } from "@/lib/utils/project-utils";
 import type { Project, Phase } from "@/lib/db/schema";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CardGridSkeleton } from "@/components/ui/card-grid-skeleton";
+import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
+import { SystemStatusBanner } from "@/components/status/system-status-banner";
+import { getSystemStatus } from "@/lib/status/system-status";
 
 interface SearchParams {
   status?: string;
   search?: string;
 }
 
-async function ProjectList({ searchParams }: { searchParams: SearchParams }) {
+async function ProjectList({
+  searchParams,
+  orgId,
+}: {
+  searchParams: SearchParams;
+  orgId: string;
+}) {
   const projects = await getProjects({
     status: searchParams.status as Project["status"] | undefined,
     search: searchParams.search,
+    orgId,
   });
 
   // Get phases for each project to calculate progress
@@ -40,25 +52,26 @@ async function ProjectList({ searchParams }: { searchParams: SearchParams }) {
 
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <Search className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-medium mb-1">No projects found</h3>
-        <p className="text-muted-foreground text-center mb-4">
-          {searchParams.search || searchParams.status
+      <EmptyState
+        icon={<Search className="h-8 w-8" />}
+        title="No projects found"
+        description={
+          searchParams.search || searchParams.status
             ? "Try adjusting your search or filters"
-            : "Create your first project to get started"}
-        </p>
-        {!searchParams.search && !searchParams.status && (
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus className="mr-2 h-4 w-4" />
-              New Project
-            </Link>
-          </Button>
-        )}
-      </div>
+            : "Create your first project to get started"
+        }
+        action={
+          !searchParams.search && !searchParams.status ? (
+            <Button asChild>
+              <Link href="/projects/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New Project
+              </Link>
+            </Button>
+          ) : null
+        }
+        className="py-16"
+      />
     );
   }
 
@@ -77,16 +90,7 @@ async function ProjectList({ searchParams }: { searchParams: SearchParams }) {
 }
 
 function ProjectListSkeleton() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <div
-          key={i}
-          className="h-64 rounded-lg border bg-card animate-pulse"
-        />
-      ))}
-    </div>
-  );
+  return <CardGridSkeleton />;
 }
 
 export default async function ProjectsPage({
@@ -95,7 +99,11 @@ export default async function ProjectsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  
+  const [organization, systemStatus] = await Promise.all([
+    getActiveOrganization(),
+    getSystemStatus(),
+  ]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -155,9 +163,11 @@ export default async function ProjectsPage({
         </DropdownMenu>
       </div>
 
+      <SystemStatusBanner status={systemStatus} />
+
       {/* Project Grid */}
       <Suspense fallback={<ProjectListSkeleton />}>
-        <ProjectList searchParams={params} />
+        <ProjectList searchParams={params} orgId={organization.id} />
       </Suspense>
     </div>
   );

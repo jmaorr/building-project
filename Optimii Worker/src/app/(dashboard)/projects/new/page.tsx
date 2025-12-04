@@ -21,11 +21,13 @@ import { getOrgTemplates, getTemplate } from "@/lib/actions/templates";
 import type { ProjectTemplate, TemplatePhase, TemplateModule } from "@/lib/db/schema";
 import { defaultModuleTypes } from "@/lib/db/seed";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/components/providers";
 
 export default function NewProjectPage() {
   const router = useRouter();
   const [step, setStep] = useState<"template" | "details">("template");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { id: orgId } = useOrganization();
   
   // Template state
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
@@ -41,7 +43,7 @@ export default function NewProjectPage() {
   useEffect(() => {
     async function loadTemplates() {
       try {
-        const orgTemplates = await getOrgTemplates("org-1"); // TODO: Get actual org ID
+        const orgTemplates = await getOrgTemplates(orgId);
         setTemplates(orgTemplates);
         
         // Pre-select the default template
@@ -57,7 +59,7 @@ export default function NewProjectPage() {
       }
     }
     loadTemplates();
-  }, []);
+  }, [orgId]);
 
   async function loadTemplatePreview(id: string) {
     try {
@@ -86,14 +88,8 @@ export default function NewProjectPage() {
     try {
       const formData = new FormData(e.currentTarget);
       
-      console.log("Creating project with data:", {
-        orgId: "org-1",
-        templateId: selectedTemplateId,
-        name: formData.get("name"),
-      });
-      
       const project = await createProject({
-        orgId: "org-1", // TODO: Get from context
+        orgId,
         templateId: selectedTemplateId || undefined,
         name: formData.get("name") as string,
         description: formData.get("description") as string || undefined,

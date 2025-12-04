@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getProject, getProjectPhases } from "@/lib/actions/projects";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { resolvePhaseFromSlug } from "@/lib/utils/slug";
 import { 
   Activity, 
   FileUp, 
@@ -24,12 +25,6 @@ import {
 interface ActivityPageProps {
   params: Promise<{ id: string; phaseSlug: string }>;
 }
-
-const slugToPhaseName: Record<string, string> = {
-  design: "Design",
-  build: "Build",
-  certification: "Certification",
-};
 
 const activityTypeConfig = {
   file_uploaded: { 
@@ -75,8 +70,7 @@ export default async function ActivityPage({ params }: ActivityPageProps) {
     notFound();
   }
 
-  const phaseName = slugToPhaseName[phaseSlug];
-  const phase = phases.find((p) => p.name === phaseName);
+  const phase = resolvePhaseFromSlug(phases, phaseSlug);
   
   if (!phase) {
     notFound();

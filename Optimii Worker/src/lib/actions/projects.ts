@@ -8,6 +8,9 @@ import type { Project, NewProject, Phase, NewPhase, PhaseModule, Stage, NewStage
 import { defaultProjectTemplate, defaultModuleTypes } from "@/lib/db/seed";
 import { getStageTemplatesForPhase } from "@/lib/db/stage-templates";
 import { getStageApprovalStatus } from "@/lib/actions/approvals";
+import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
+
+const DEFAULT_ORG_ID = process.env.NEXT_PUBLIC_DEFAULT_ORG_ID || "org-1";
 
 // =============================================================================
 // PROJECT ACTIONS
@@ -16,6 +19,7 @@ import { getStageApprovalStatus } from "@/lib/actions/approvals";
 export async function getProjects(filters?: {
   status?: Project["status"];
   search?: string;
+  orgId?: string;
 }): Promise<Project[]> {
   try {
     const d1 = await getD1Database();
@@ -23,10 +27,13 @@ export async function getProjects(filters?: {
       console.warn("D1 database not available, returning empty array");
       return [];
     }
-    
+
+    const orgId =
+      filters?.orgId || (await getActiveOrganization())?.id || DEFAULT_ORG_ID;
+
     const db = createDb(d1);
-    
-    const conditions = [];
+
+    const conditions = [eq(projects.orgId, orgId)];
     if (filters?.status) {
       conditions.push(eq(projects.status, filters.status));
     }
@@ -80,12 +87,12 @@ export async function createProject(data: Omit<NewProject, "id" | "createdAt" | 
     const db = createDb(d1);
     const now = new Date();
     const projectId = generateId();
-    const orgId = data.orgId || "org-1";
+    const resolvedOrg = data.orgId || (await getActiveOrganization()).id || DEFAULT_ORG_ID;
     
     // Verify organization exists
-    const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get();
+    const org = await db.select().from(organizations).where(eq(organizations.id, resolvedOrg)).get();
     if (!org) {
-      throw new Error(`Organization ${orgId} does not exist. Please create it first.`);
+      throw new Error(`Organization ${resolvedOrg} does not exist. Please create it first.`);
     }
     
     // Verify template exists if provided
@@ -98,11 +105,11 @@ export async function createProject(data: Omit<NewProject, "id" | "createdAt" | 
       }
     }
     
-    console.log("Creating project:", { projectId, orgId, name: data.name, templateId });
+    console.log("Creating project:", { projectId, orgId: resolvedOrg, name: data.name, templateId });
     
     const newProject: NewProject = {
       id: projectId,
-      orgId,
+      orgId: resolvedOrg,
       templateId,
       name: data.name,
       description: data.description || null,

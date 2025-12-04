@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getProject } from "@/lib/actions/projects";
 import { getProjectContacts, getContactRoles } from "@/lib/actions/contacts";
+import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
 
 interface ProjectContactsPageProps {
   params: Promise<{ id: string }>;
@@ -30,7 +31,10 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
 
   const [contacts, roles] = await Promise.all([
     getProjectContacts(id),
-    getContactRoles("org-1"),
+    (async () => {
+      const organization = await getActiveOrganization();
+      return getContactRoles(organization.id);
+    })(),
   ]);
 
   const getInitials = (name: string) => {
