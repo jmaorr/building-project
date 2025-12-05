@@ -1,12 +1,9 @@
 "use server";
 
-import type { ActivityLog, NewActivityLog } from "@/lib/db/schema";
-
-// =============================================================================
-// MOCK DATA STORE (Replace with D1 database operations in production)
-// =============================================================================
-
-let mockActivityLog: ActivityLog[] = [];
+import { eq, and, desc } from "drizzle-orm";
+import { activityLog, generateId, type ActivityLog, type NewActivityLog } from "@/lib/db/schema";
+import { getD1Database } from "@/lib/cloudflare/get-env";
+import { createDb, type D1Database } from "@/lib/db";
 
 // =============================================================================
 // ACTIVITY LOG ACTIONS
@@ -21,8 +18,15 @@ export async function logActivity(data: {
   userId: string;
   metadata?: Record<string, unknown>;
 }): Promise<ActivityLog> {
-  const activity: ActivityLog = {
-    id: `activity-${Date.now()}`,
+  const d1 = getD1Database() as D1Database | null;
+  if (!d1) {
+    throw new Error("Database not available");
+  }
+
+  const db = createDb(d1);
+  
+  const newActivity: NewActivityLog = {
+    id: generateId(),
     projectId: data.projectId,
     phaseId: data.phaseId || null,
     stageId: data.stageId || null,
@@ -32,9 +36,9 @@ export async function logActivity(data: {
     metadata: data.metadata ? JSON.stringify(data.metadata) : null,
     createdAt: new Date(),
   };
-  
-  mockActivityLog.push(activity);
-  return activity;
+
+  await db.insert(activityLog).values(newActivity).run();
+  return newActivity as ActivityLog;
 }
 
 export async function getActivityByPhase(
@@ -46,29 +50,40 @@ export async function getActivityByPhase(
     limit?: number;
   }
 ): Promise<ActivityLog[]> {
-  let filtered = mockActivityLog.filter((a) => a.phaseId === phaseId);
+  const d1 = getD1Database() as D1Database | null;
+  if (!d1) {
+    return [];
+  }
+
+  const db = createDb(d1);
+  
+  const conditions = [eq(activityLog.phaseId, phaseId)];
   
   if (filters?.type) {
-    filtered = filtered.filter((a) => a.type === filters.type);
+    conditions.push(eq(activityLog.type, filters.type));
   }
   
   if (filters?.stageId) {
-    filtered = filtered.filter((a) => a.stageId === filters.stageId);
+    conditions.push(eq(activityLog.stageId, filters.stageId));
   }
   
   if (filters?.roundNumber !== undefined) {
-    filtered = filtered.filter((a) => a.roundNumber === filters.roundNumber);
+    conditions.push(eq(activityLog.roundNumber, filters.roundNumber));
   }
-  
-  filtered.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+
+  const query = db
+    .select()
+    .from(activityLog)
+    .where(and(...conditions))
+    .orderBy(desc(activityLog.createdAt));
+
+  const result = await query.all();
   
   if (filters?.limit) {
-    filtered = filtered.slice(0, filters.limit);
+    return result.slice(0, filters.limit);
   }
   
-  return filtered;
+  return result;
 }
 
 export async function getActivityByProject(
@@ -79,24 +94,35 @@ export async function getActivityByProject(
     limit?: number;
   }
 ): Promise<ActivityLog[]> {
-  let filtered = mockActivityLog.filter((a) => a.projectId === projectId);
+  const d1 = getD1Database() as D1Database | null;
+  if (!d1) {
+    return [];
+  }
+
+  const db = createDb(d1);
+  
+  const conditions = [eq(activityLog.projectId, projectId)];
   
   if (filters?.type) {
-    filtered = filtered.filter((a) => a.type === filters.type);
+    conditions.push(eq(activityLog.type, filters.type));
   }
   
   if (filters?.phaseId) {
-    filtered = filtered.filter((a) => a.phaseId === filters.phaseId);
+    conditions.push(eq(activityLog.phaseId, filters.phaseId));
   }
-  
-  filtered.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+
+  const query = db
+    .select()
+    .from(activityLog)
+    .where(and(...conditions))
+    .orderBy(desc(activityLog.createdAt));
+
+  const result = await query.all();
   
   if (filters?.limit) {
-    filtered = filtered.slice(0, filters.limit);
+    return result.slice(0, filters.limit);
   }
   
-  return filtered;
+  return result;
 }
 

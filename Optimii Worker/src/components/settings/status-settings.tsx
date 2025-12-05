@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, GripVertical, Trash2, RotateCcw, Edit2, Check, X, Palette, AlertCircle } from "lucide-react";
+import { Plus, GripVertical, Trash2, RotateCcw, Edit2, Check, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -82,7 +81,6 @@ interface StatusSettingsProps {
 
 export function StatusSettings({ orgId, projectId, projectName }: StatusSettingsProps) {
   const { id: activeOrgId } = useOrganization();
-  const router = useRouter();
   const [configs, setConfigs] = useState<StatusConfig[]>([]);
   const [entityType, setEntityType] = useState<"stage" | "project" | "phase">("stage");
   const [isLoading, setIsLoading] = useState(true);
@@ -250,7 +248,7 @@ export function StatusSettings({ orgId, projectId, projectName }: StatusSettings
           <div className="flex-1">
             <p className="text-sm font-medium text-blue-600">Using System Defaults</p>
             <p className="text-xs text-blue-600/80">
-              Click "Customize" to create your own status configuration
+              Click &quot;Customize&quot; to create your own status configuration
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={handleCustomize}>

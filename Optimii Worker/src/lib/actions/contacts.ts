@@ -1,5 +1,14 @@
 "use server";
 
+import { eq, and, like, or, asc } from "drizzle-orm";
+import { createDb, type D1Database } from "@/lib/db";
+import {
+  contacts,
+  contactRoles,
+  projectContacts,
+  generateId
+} from "@/lib/db/schema";
+import { getD1Database } from "@/lib/cloudflare/get-env";
 import type {
   Contact,
   NewContact,
@@ -8,119 +17,8 @@ import type {
   PermissionLevel,
   UserType
 } from "@/lib/db/schema";
-import { defaultContactRoles } from "@/lib/db/seed";
 
 const DEFAULT_ORG_ID = process.env.NEXT_PUBLIC_DEFAULT_ORG_ID || "org-1";
-
-// =============================================================================
-// MOCK DATA STORE (Replace with D1 database operations in production)
-// =============================================================================
-
-let mockContacts: Contact[] = [
-  {
-    id: "contact-1",
-    orgId: "org-1",
-    userId: "user-1",
-    name: "John Smith",
-    email: "john@optimii.com",
-    phone: "0412 345 678",
-    company: "Optimii Pty Ltd",
-    role: "owner",
-    avatarUrl: null,
-    notes: "Project owner",
-    isInvited: true,
-    invitedAt: new Date("2024-01-01"),
-    createdAt: new Date("2024-01-01"),
-    updatedAt: new Date("2024-01-01"),
-  },
-  {
-    id: "contact-2",
-    orgId: "org-1",
-    userId: null,
-    name: "Sarah Builder",
-    email: "sarah@premiumbuilders.com.au",
-    phone: "0423 456 789",
-    company: "Premium Builders",
-    role: "builder",
-    avatarUrl: null,
-    notes: "Licensed builder - QBCC #12345",
-    isInvited: false,
-    invitedAt: null,
-    createdAt: new Date("2024-01-05"),
-    updatedAt: new Date("2024-01-05"),
-  },
-  {
-    id: "contact-3",
-    orgId: "org-1",
-    userId: null,
-    name: "Michael Architect",
-    email: "michael@designstudio.com.au",
-    phone: "0434 567 890",
-    company: "Design Studio Architecture",
-    role: "architect",
-    avatarUrl: null,
-    notes: "Registered architect - ARB #67890",
-    isInvited: false,
-    invitedAt: null,
-    createdAt: new Date("2024-01-05"),
-    updatedAt: new Date("2024-01-05"),
-  },
-  {
-    id: "contact-4",
-    orgId: "org-1",
-    userId: null,
-    name: "Lisa Certifier",
-    email: "lisa@certifyright.com.au",
-    phone: "0445 678 901",
-    company: "CertifyRight Building Certifiers",
-    role: "certifier",
-    avatarUrl: null,
-    notes: "Building certifier",
-    isInvited: false,
-    invitedAt: null,
-    createdAt: new Date("2024-01-10"),
-    updatedAt: new Date("2024-01-10"),
-  },
-  {
-    id: "contact-5",
-    orgId: "org-1",
-    userId: null,
-    name: "David Engineer",
-    email: "david@structuraleng.com.au",
-    phone: "0456 789 012",
-    company: "Structural Engineering Solutions",
-    role: null,
-    avatarUrl: null,
-    notes: "Structural engineer - RPE #11111",
-    isInvited: false,
-    invitedAt: null,
-    createdAt: new Date("2024-01-15"),
-    updatedAt: new Date("2024-01-15"),
-  },
-];
-
-let mockContactRoles: ContactRole[] = defaultContactRoles.map((role, idx) => ({
-  id: `role-${idx + 1}`,
-  orgId: null, // System roles
-  name: role.name,
-  description: role.description,
-  isSystem: role.isSystem,
-  createdAt: new Date("2024-01-01"),
-}));
-
-let mockProjectContacts: ProjectContact[] = [
-  // Riverside Renovation team
-  { id: "pc-1", projectId: "proj-1", contactId: "contact-1", roleId: "role-1", isPrimary: true, permission: "admin", createdAt: new Date() },
-  { id: "pc-2", projectId: "proj-1", contactId: "contact-2", roleId: "role-2", isPrimary: true, permission: "editor", createdAt: new Date() },
-  { id: "pc-3", projectId: "proj-1", contactId: "contact-3", roleId: "role-3", isPrimary: true, permission: "viewer", createdAt: new Date() },
-  // Oak Street Build team
-  { id: "pc-4", projectId: "proj-2", contactId: "contact-1", roleId: "role-1", isPrimary: true, permission: "admin", createdAt: new Date() },
-  { id: "pc-5", projectId: "proj-2", contactId: "contact-2", roleId: "role-2", isPrimary: true, permission: "editor", createdAt: new Date() },
-  { id: "pc-6", projectId: "proj-2", contactId: "contact-4", roleId: "role-4", isPrimary: true, permission: "viewer", createdAt: new Date() },
-  // Harbor View Extension team
-  { id: "pc-7", projectId: "proj-3", contactId: "contact-1", roleId: "role-1", isPrimary: true, permission: "admin", createdAt: new Date() },
-  { id: "pc-8", projectId: "proj-3", contactId: "contact-5", roleId: "role-5", isPrimary: true, permission: "viewer", createdAt: new Date() },
-];
 
 // =============================================================================
 // CONTACT ACTIONS
@@ -130,34 +28,68 @@ export async function getContacts(filters?: {
   search?: string;
   orgId?: string;
 }): Promise<Contact[]> {
-  let filtered = [...mockContacts];
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return [];
 
-  const orgFilter = filters?.orgId || DEFAULT_ORG_ID;
-  if (orgFilter) {
-    filtered = filtered.filter(c => c.orgId === orgFilter);
+    const db = createDb(d1);
+    const orgId = filters?.orgId || DEFAULT_ORG_ID;
+
+    const conditions = [eq(contacts.orgId, orgId)];
+
+    if (filters?.search) {
+      const search = `%${filters.search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          like(contacts.name, search),
+          like(contacts.email, search),
+          like(contacts.company, search)
+        )!
+      );
+    }
+
+    return await db.select()
+      .from(contacts)
+      .where(and(...conditions))
+      .orderBy(asc(contacts.name));
+  } catch (error) {
+    console.error("Error fetching contacts:", error);
+    return [];
   }
-  
-  if (filters?.search) {
-    const search = filters.search.toLowerCase();
-    filtered = filtered.filter(c => 
-      c.name.toLowerCase().includes(search) ||
-      c.email?.toLowerCase().includes(search) ||
-      c.company?.toLowerCase().includes(search)
-    );
-  }
-  
-  return filtered.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getContact(id: string): Promise<Contact | null> {
-  return mockContacts.find(c => c.id === id) || null;
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return null;
+
+    const db = createDb(d1);
+    const result = await db.select().from(contacts).where(eq(contacts.id, id)).get();
+    return result || null;
+  } catch (error) {
+    console.error("Error fetching contact:", error);
+    return null;
+  }
 }
 
 /**
  * Get contact by email - used for merging on sign-up
  */
 export async function getContactByEmail(email: string): Promise<Contact | null> {
-  return mockContacts.find(c => c.email?.toLowerCase() === email.toLowerCase()) || null;
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return null;
+
+    const db = createDb(d1);
+    const result = await db.select()
+      .from(contacts)
+      .where(eq(contacts.email, email))
+      .get();
+    return result || null;
+  } catch (error) {
+    console.error("Error fetching contact by email:", error);
+    return null;
+  }
 }
 
 /**
@@ -165,12 +97,30 @@ export async function getContactByEmail(email: string): Promise<Contact | null> 
  * Used for linking contacts when a user signs up
  */
 export async function getContactsByEmail(email: string): Promise<Contact[]> {
-  return mockContacts.filter(c => c.email?.toLowerCase() === email.toLowerCase());
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return [];
+
+    const db = createDb(d1);
+    return await db.select()
+      .from(contacts)
+      .where(eq(contacts.email, email));
+  } catch (error) {
+    console.error("Error fetching contacts by email:", error);
+    return [];
+  }
 }
 
 export async function createContact(data: Omit<NewContact, "id" | "createdAt" | "updatedAt">): Promise<Contact> {
-  const contact: Contact = {
-    id: `contact-${Date.now()}`,
+  const d1 = getD1Database() as D1Database | null;
+  if (!d1) throw new Error("D1 database not available");
+
+  const db = createDb(d1);
+  const now = new Date();
+  const contactId = generateId();
+
+  const newContact: NewContact = {
+    id: contactId,
     orgId: data.orgId || DEFAULT_ORG_ID,
     userId: data.userId || null,
     name: data.name,
@@ -182,36 +132,51 @@ export async function createContact(data: Omit<NewContact, "id" | "createdAt" | 
     notes: data.notes || null,
     isInvited: data.isInvited || false,
     invitedAt: data.invitedAt || null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: now,
+    updatedAt: now,
   };
-  
-  mockContacts.push(contact);
-  return contact;
+
+  await db.insert(contacts).values(newContact);
+
+  const result = await db.select().from(contacts).where(eq(contacts.id, contactId)).get();
+  if (!result) throw new Error("Failed to create contact");
+
+  return result;
 }
 
 export async function updateContact(id: string, data: Partial<NewContact>): Promise<Contact | null> {
-  const index = mockContacts.findIndex(c => c.id === id);
-  if (index === -1) return null;
-  
-  mockContacts[index] = {
-    ...mockContacts[index],
-    ...data,
-    updatedAt: new Date(),
-  };
-  
-  return mockContacts[index];
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return null;
+
+    const db = createDb(d1);
+    const result = await db.update(contacts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(contacts.id, id))
+      .returning()
+      .get();
+
+    return result || null;
+  } catch (error) {
+    console.error("Error updating contact:", error);
+    return null;
+  }
 }
 
 export async function deleteContact(id: string): Promise<boolean> {
-  const index = mockContacts.findIndex(c => c.id === id);
-  if (index === -1) return false;
-  
-  mockContacts.splice(index, 1);
-  // Also remove from project associations
-  mockProjectContacts = mockProjectContacts.filter(pc => pc.contactId !== id);
-  
-  return true;
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return false;
+
+    const db = createDb(d1);
+    // Cascade delete should handle project contacts if configured in schema, 
+    // but explicit delete is safer if not fully relied upon
+    const result = await db.delete(contacts).where(eq(contacts.id, id)).returning().get();
+    return !!result;
+  } catch (error) {
+    console.error("Error deleting contact:", error);
+    return false;
+  }
 }
 
 // =============================================================================
@@ -223,63 +188,68 @@ export async function deleteContact(id: string): Promise<boolean> {
  * This sends an invitation email and marks the contact as invited
  */
 export async function inviteContact(contactId: string): Promise<{ success: boolean; error?: string }> {
-  const contact = mockContacts.find(c => c.id === contactId);
-  if (!contact) {
-    return { success: false, error: "Contact not found" };
+  try {
+    const contact = await getContact(contactId);
+    if (!contact) {
+      return { success: false, error: "Contact not found" };
+    }
+
+    if (!contact.email) {
+      return { success: false, error: "Contact has no email address" };
+    }
+
+    if (contact.isInvited) {
+      return { success: false, error: "Contact has already been invited" };
+    }
+
+    // TODO: Send invitation email via Clerk or email service
+
+    await updateContact(contactId, {
+      isInvited: true,
+      invitedAt: new Date(),
+    });
+
+    console.log(`Invited contact ${contact.id} (${contact.email})`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error inviting contact:", error);
+    return { success: false, error: "Failed to invite contact" };
   }
-
-  if (!contact.email) {
-    return { success: false, error: "Contact has no email address" };
-  }
-
-  if (contact.isInvited) {
-    return { success: false, error: "Contact has already been invited" };
-  }
-
-  // TODO: Send invitation email via Clerk or email service
-  // For now, just mark as invited
-  contact.isInvited = true;
-  contact.invitedAt = new Date();
-  contact.updatedAt = new Date();
-
-  console.log(`Invited contact ${contact.id} (${contact.email})`);
-
-  return { success: true };
 }
 
 /**
  * Re-send invitation to a contact
  */
 export async function resendInvite(contactId: string): Promise<{ success: boolean; error?: string }> {
-  const contact = mockContacts.find(c => c.id === contactId);
-  if (!contact) {
-    return { success: false, error: "Contact not found" };
+  try {
+    const contact = await getContact(contactId);
+    if (!contact) {
+      return { success: false, error: "Contact not found" };
+    }
+
+    if (!contact.email) {
+      return { success: false, error: "Contact has no email address" };
+    }
+
+    // TODO: Re-send invitation email
+
+    await updateContact(contactId, {
+      invitedAt: new Date(),
+    });
+
+    console.log(`Re-sent invitation to contact ${contact.id} (${contact.email})`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error resending invite:", error);
+    return { success: false, error: "Failed to resend invite" };
   }
-
-  if (!contact.email) {
-    return { success: false, error: "Contact has no email address" };
-  }
-
-  // TODO: Re-send invitation email
-  contact.invitedAt = new Date();
-  contact.updatedAt = new Date();
-
-  console.log(`Re-sent invitation to contact ${contact.id} (${contact.email})`);
-
-  return { success: true };
 }
 
 /**
  * Link a user to a contact (after they sign up)
  */
 export async function linkUserToContact(contactId: string, userId: string): Promise<Contact | null> {
-  const contact = mockContacts.find(c => c.id === contactId);
-  if (!contact) return null;
-
-  contact.userId = userId;
-  contact.updatedAt = new Date();
-
-  return contact;
+  return updateContact(contactId, { userId });
 }
 
 // =============================================================================
@@ -287,9 +257,23 @@ export async function linkUserToContact(contactId: string, userId: string): Prom
 // =============================================================================
 
 export async function getContactRoles(orgId?: string): Promise<ContactRole[]> {
-  // Return system roles plus org-specific roles
-  const resolvedOrg = orgId || DEFAULT_ORG_ID;
-  return mockContactRoles.filter(r => r.orgId === null || r.orgId === resolvedOrg);
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return [];
+
+    const db = createDb(d1);
+    const resolvedOrg = orgId || DEFAULT_ORG_ID;
+
+    return await db.select()
+      .from(contactRoles)
+      .where(or(
+        eq(contactRoles.orgId, resolvedOrg),
+        eq(contactRoles.isSystem, true)
+      ));
+  } catch (error) {
+    console.error("Error fetching contact roles:", error);
+    return [];
+  }
 }
 
 export async function createContactRole(data: {
@@ -297,17 +281,28 @@ export async function createContactRole(data: {
   name: string;
   description?: string;
 }): Promise<ContactRole> {
-  const role: ContactRole = {
-    id: `role-${Date.now()}`,
+  const d1 = getD1Database() as D1Database | null;
+  if (!d1) throw new Error("D1 database not available");
+
+  const db = createDb(d1);
+  const now = new Date();
+  const roleId = generateId();
+
+  const newRole = {
+    id: roleId,
     orgId: data.orgId,
     name: data.name,
     description: data.description || null,
     isSystem: false,
-    createdAt: new Date(),
+    createdAt: now,
   };
-  
-  mockContactRoles.push(role);
-  return role;
+
+  await db.insert(contactRoles).values(newRole);
+
+  const result = await db.select().from(contactRoles).where(eq(contactRoles.id, roleId)).get();
+  if (!result) throw new Error("Failed to create contact role");
+
+  return result;
 }
 
 // =============================================================================
@@ -315,13 +310,29 @@ export async function createContactRole(data: {
 // =============================================================================
 
 export async function getProjectContacts(projectId: string): Promise<(ProjectContact & { contact: Contact; role: ContactRole | null })[]> {
-  const projectContacts = mockProjectContacts.filter(pc => pc.projectId === projectId);
-  
-  return projectContacts.map(pc => ({
-    ...pc,
-    contact: mockContacts.find(c => c.id === pc.contactId)!,
-    role: pc.roleId ? mockContactRoles.find(r => r.id === pc.roleId) || null : null,
-  })).filter(pc => pc.contact);
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return [];
+
+    const db = createDb(d1);
+
+    const rows = await db.select()
+      .from(projectContacts)
+      .leftJoin(contacts, eq(projectContacts.contactId, contacts.id))
+      .leftJoin(contactRoles, eq(projectContacts.roleId, contactRoles.id))
+      .where(eq(projectContacts.projectId, projectId));
+
+    return rows
+      .filter(r => r.contacts !== null)
+      .map(r => ({
+        ...r.project_contacts,
+        contact: r.contacts!,
+        role: r.contact_roles || null,
+      }));
+  } catch (error) {
+    console.error("Error fetching project contacts:", error);
+    return [];
+  }
 }
 
 /**
@@ -335,39 +346,62 @@ export async function addContactToProject(data: {
   permission?: PermissionLevel;
   sendInvite?: boolean;
 }): Promise<{ projectContact: ProjectContact; invited: boolean }> {
+  const d1 = getD1Database() as D1Database | null;
+  if (!d1) throw new Error("D1 database not available");
+
+  const db = createDb(d1);
+  const now = new Date();
+
   // Check if already exists
-  const existing = mockProjectContacts.find(
-    pc => pc.projectId === data.projectId && pc.contactId === data.contactId
-  );
-  
+  const existing = await db.select()
+    .from(projectContacts)
+    .where(and(
+      eq(projectContacts.projectId, data.projectId),
+      eq(projectContacts.contactId, data.contactId)
+    ))
+    .get();
+
   if (existing) {
     // Update existing
-    if (data.roleId) existing.roleId = data.roleId;
-    existing.isPrimary = data.isPrimary ?? existing.isPrimary;
-    existing.permission = data.permission ?? existing.permission;
+    const updates: Partial<ProjectContact> = {};
+    if (data.roleId) updates.roleId = data.roleId;
+    if (data.isPrimary !== undefined) updates.isPrimary = data.isPrimary;
+    if (data.permission) updates.permission = data.permission;
+
+    if (Object.keys(updates).length > 0) {
+      await db.update(projectContacts)
+        .set(updates)
+        .where(eq(projectContacts.id, existing.id));
+
+      const updated = await db.select().from(projectContacts).where(eq(projectContacts.id, existing.id)).get();
+      return { projectContact: updated!, invited: false };
+    }
+
     return { projectContact: existing, invited: false };
   }
-  
-  const projectContact: ProjectContact = {
-    id: `pc-${Date.now()}`,
+
+  const id = generateId();
+  const newProjectContact: ProjectContact = {
+    id,
     projectId: data.projectId,
     contactId: data.contactId,
     roleId: data.roleId || null,
     isPrimary: data.isPrimary ?? false,
     permission: data.permission ?? "viewer",
-    createdAt: new Date(),
+    createdAt: now,
   };
-  
-  mockProjectContacts.push(projectContact);
+
+  await db.insert(projectContacts).values(newProjectContact);
+  const result = await db.select().from(projectContacts).where(eq(projectContacts.id, id)).get();
 
   // Optionally send invite
   let invited = false;
   if (data.sendInvite) {
-    const result = await inviteContact(data.contactId);
-    invited = result.success;
+    const inviteResult = await inviteContact(data.contactId);
+    invited = inviteResult.success;
   }
-  
-  return { projectContact, invited };
+
+  return { projectContact: result!, invited };
 }
 
 /**
@@ -406,14 +440,24 @@ export async function createAndAddContactToProject(data: {
 }
 
 export async function removeContactFromProject(projectId: string, contactId: string): Promise<boolean> {
-  const index = mockProjectContacts.findIndex(
-    pc => pc.projectId === projectId && pc.contactId === contactId
-  );
-  
-  if (index === -1) return false;
-  
-  mockProjectContacts.splice(index, 1);
-  return true;
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return false;
+
+    const db = createDb(d1);
+    const result = await db.delete(projectContacts)
+      .where(and(
+        eq(projectContacts.projectId, projectId),
+        eq(projectContacts.contactId, contactId)
+      ))
+      .returning()
+      .get();
+
+    return !!result;
+  } catch (error) {
+    console.error("Error removing contact from project:", error);
+    return false;
+  }
 }
 
 export async function updateProjectContact(
@@ -421,32 +465,56 @@ export async function updateProjectContact(
   contactId: string,
   data: Partial<Pick<ProjectContact, "roleId" | "isPrimary" | "permission">>
 ): Promise<ProjectContact | null> {
-  const pc = mockProjectContacts.find(
-    pc => pc.projectId === projectId && pc.contactId === contactId
-  );
-  
-  if (!pc) return null;
-  
-  Object.assign(pc, data);
-  return pc;
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return null;
+
+    const db = createDb(d1);
+    const result = await db.update(projectContacts)
+      .set(data)
+      .where(and(
+        eq(projectContacts.projectId, projectId),
+        eq(projectContacts.contactId, contactId)
+      ))
+      .returning()
+      .get();
+
+    return result || null;
+  } catch (error) {
+    console.error("Error updating project contact:", error);
+    return null;
+  }
 }
 
 // =============================================================================
 // CONTACT PROJECTS
 // =============================================================================
 
-export async function getContactProjects(contactId: string): Promise<{ 
-  projectId: string; 
+export async function getContactProjects(contactId: string): Promise<{
+  projectId: string;
   role: ContactRole | null;
   permission: PermissionLevel;
 }[]> {
-  return mockProjectContacts
-    .filter(pc => pc.contactId === contactId)
-    .map(pc => ({
-      projectId: pc.projectId,
-      role: pc.roleId ? mockContactRoles.find(r => r.id === pc.roleId) || null : null,
-      permission: pc.permission,
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return [];
+
+    const db = createDb(d1);
+
+    const rows = await db.select()
+      .from(projectContacts)
+      .leftJoin(contactRoles, eq(projectContacts.roleId, contactRoles.id))
+      .where(eq(projectContacts.contactId, contactId));
+
+    return rows.map(r => ({
+      projectId: r.project_contacts.projectId,
+      role: r.contact_roles || null,
+      permission: r.project_contacts.permission as PermissionLevel,
     }));
+  } catch (error) {
+    console.error("Error fetching contact projects:", error);
+    return [];
+  }
 }
 
 /**
@@ -457,21 +525,27 @@ export async function getProjectAccessForUser(userId: string): Promise<{
   permission: PermissionLevel;
   contact: Contact;
 }[]> {
-  // Find all contacts linked to this user
-  const userContacts = mockContacts.filter(c => c.userId === userId);
-  
-  const access: { projectId: string; permission: PermissionLevel; contact: Contact }[] = [];
-  
-  for (const contact of userContacts) {
-    const projectAccess = mockProjectContacts.filter(pc => pc.contactId === contact.id);
-    for (const pa of projectAccess) {
-      access.push({
-        projectId: pa.projectId,
-        permission: pa.permission,
-        contact,
-      });
-    }
+  try {
+    const d1 = getD1Database() as D1Database | null;
+    if (!d1) return [];
+
+    const db = createDb(d1);
+
+    // Find all contacts linked to this user
+    // Then find all project contacts for those contacts
+
+    const rows = await db.select()
+      .from(contacts)
+      .innerJoin(projectContacts, eq(contacts.id, projectContacts.contactId))
+      .where(eq(contacts.userId, userId));
+
+    return rows.map(r => ({
+      projectId: r.project_contacts.projectId,
+      permission: r.project_contacts.permission as PermissionLevel,
+      contact: r.contacts,
+    }));
+  } catch (error) {
+    console.error("Error fetching project access for user:", error);
+    return [];
   }
-  
-  return access;
 }

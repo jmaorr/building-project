@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plus, UserPlus, Mail, Phone, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MoreHorizontal, UserCheck, Clock } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getProject } from "@/lib/actions/projects";
-import { getProjectContacts, getContactRoles } from "@/lib/actions/contacts";
+import { getProjectContacts } from "@/lib/actions/contacts";
+import { AddContactDialog } from "@/components/contacts/add-contact-dialog";
 import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
 
 interface ProjectContactsPageProps {
@@ -23,19 +24,17 @@ interface ProjectContactsPageProps {
 
 export default async function ProjectContactsPage({ params }: ProjectContactsPageProps) {
   const { id } = await params;
-  const project = await getProject(id);
-  
+  const [project, org] = await Promise.all([
+    getProject(id),
+    getActiveOrganization(),
+  ]);
+
   if (!project) {
     notFound();
   }
 
-  const [contacts, roles] = await Promise.all([
-    getProjectContacts(id),
-    (async () => {
-      const organization = await getActiveOrganization();
-      return getContactRoles(organization.id);
-    })(),
-  ]);
+  const contacts = await getProjectContacts(id);
+  const orgId = org?.id || project.orgId;
 
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -70,10 +69,7 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
               { title: "Team" },
             ]}
             actions={
-              <Button>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add Team Member
-              </Button>
+              <AddContactDialog projectId={id} orgId={orgId} />
             }
           />
         </div>
@@ -83,16 +79,13 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="rounded-full bg-muted p-4 mb-4">
-              <UserPlus className="h-8 w-8 text-muted-foreground" />
+              <UserCheck className="h-8 w-8 text-muted-foreground" />
             </div>
             <h3 className="text-lg font-medium mb-1">No team members</h3>
             <p className="text-muted-foreground text-center mb-4">
               Add team members to collaborate on this project.
             </p>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add Team Member
-            </Button>
+            <AddContactDialog projectId={id} orgId={orgId} />
           </CardContent>
         </Card>
       ) : (
@@ -108,7 +101,7 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {roleContacts.map(({ contact, role, isPrimary, permission }) => (
+                {roleContacts.map(({ contact, isPrimary }) => (
                   <div
                     key={contact.id}
                     className="flex items-center gap-4 p-3 rounded-lg border"
@@ -119,7 +112,7 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
                         {getInitials(contact.name)}
                       </AvatarFallback>
                     </Avatar>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <Link
@@ -131,6 +124,17 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
                         {isPrimary && (
                           <Badge variant="outline" className="text-xs">Primary</Badge>
                         )}
+                        {contact.userId ? (
+                          <Badge variant="default" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                            <UserCheck className="mr-1 h-3 w-3" />
+                            Active
+                          </Badge>
+                        ) : contact.invitedAt ? (
+                          <Badge variant="secondary" className="text-xs">
+                            <Clock className="mr-1 h-3 w-3" />
+                            Pending
+                          </Badge>
+                        ) : null}
                       </div>
                       {contact.company && (
                         <p className="text-sm text-muted-foreground">
@@ -138,7 +142,7 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
                         </p>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       {contact.email && (
                         <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
@@ -154,7 +158,7 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
                           </a>
                         </Button>
                       )}
-                      
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -171,6 +175,9 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
                           <DropdownMenuItem>
                             {isPrimary ? "Remove as Primary" : "Set as Primary"}
                           </DropdownMenuItem>
+                          {!contact.userId && contact.email && (
+                            <DropdownMenuItem>Send Invite</DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-destructive">
                             Remove from Project
@@ -188,7 +195,3 @@ export default async function ProjectContactsPage({ params }: ProjectContactsPag
     </div>
   );
 }
-
-
-
-

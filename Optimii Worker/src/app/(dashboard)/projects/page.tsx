@@ -12,10 +12,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ProjectCard } from "@/components/projects/project-card";
+import { ProjectGrid } from "@/components/projects/project-grid";
 import { getProjects, getProjectPhases } from "@/lib/actions/projects";
 import { calculateProjectProgress } from "@/lib/utils/project-utils";
-import type { Project, Phase } from "@/lib/db/schema";
+import type { Project } from "@/lib/db/schema";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardGridSkeleton } from "@/components/ui/card-grid-skeleton";
 import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
@@ -75,18 +75,7 @@ async function ProjectList({
     );
   }
 
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {projectsWithProgress.map(({ project, progress, currentPhase }) => (
-        <ProjectCard
-          key={project.id}
-          project={project}
-          progress={progress}
-          currentPhase={currentPhase}
-        />
-      ))}
-    </div>
-  );
+  return <ProjectGrid items={projectsWithProgress} />;
 }
 
 function ProjectListSkeleton() {

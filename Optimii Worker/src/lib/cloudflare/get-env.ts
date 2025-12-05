@@ -7,11 +7,11 @@
 
 import type { R2Bucket } from "@/lib/storage/r2-types";
 
-export function getCloudflareEnv(): { R2_BUCKET?: R2Bucket; DB?: any; [key: string]: any } | null {
+export function getCloudflareEnv(): { R2_BUCKET?: R2Bucket; DB?: unknown; [key: string]: unknown } | null {
   try {
     // Access Cloudflare context via Symbol (OpenNext pattern)
     const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
-    const contextGetter = (globalThis as any)[cloudflareContextSymbol];
+    const contextGetter = (globalThis as Record<symbol, unknown>)[cloudflareContextSymbol];
     
     // The context getter might be a function or a direct value
     const cloudflareContext = typeof contextGetter === "function" 
@@ -30,7 +30,7 @@ export function getR2Bucket(): R2Bucket | null {
   return env?.R2_BUCKET || null;
 }
 
-export function getD1Database(): any | null {
+export function getD1Database(): unknown | null {
   const env = getCloudflareEnv();
   return env?.DB || null;
 }

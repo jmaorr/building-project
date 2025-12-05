@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  ArrowLeft, 
-  Save, 
-  Loader2, 
-  Plus, 
-  Trash2, 
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  Plus,
+  Trash2,
   GripVertical,
   ChevronDown,
   ChevronRight,
@@ -16,7 +15,6 @@ import {
   Edit2,
   Check,
   X,
-  AlertTriangle
 } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -41,10 +39,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import type { ProjectTemplate, TemplatePhase, TemplateModule } from "@/lib/db/schema";
-import { 
-  getTemplate, 
-  getSystemTemplates,
+import type { ProjectTemplate, TemplatePhase, TemplateStage } from "@/lib/db/schema";
+import {
+  getTemplate,
   updateTemplate,
   addTemplatePhase,
   updateTemplatePhase,
@@ -54,9 +51,9 @@ import {
   deleteTemplateModule,
   reorderTemplateModules,
 } from "@/lib/actions/templates";
-import { defaultModuleTypes } from "@/lib/db/seed";
+import { defaultStageTypes } from "@/lib/db/seed";
 
-type ModuleWithType = TemplateModule & { moduleType: typeof defaultModuleTypes[number] };
+type ModuleWithType = TemplateStage & { moduleType: typeof defaultStageTypes[number] };
 type PhaseWithModules = TemplatePhase & { modules: ModuleWithType[] };
 type TemplateDetail = {
   template: ProjectTemplate;
@@ -69,23 +66,22 @@ interface TemplateEditorPageProps {
 
 export default function TemplateEditorPage({ params }: TemplateEditorPageProps) {
   const { id } = use(params);
-  const router = useRouter();
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  
+
   // Template data
   const [originalSystemTemplate, setOriginalSystemTemplate] = useState<TemplateDetail | null>(null);
   const [template, setTemplate] = useState<ProjectTemplate | null>(null);
   const [phases, setPhases] = useState<PhaseWithModules[]>([]);
-  
+
   // UI state
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   const [editingPhaseName, setEditingPhaseName] = useState<string | null>(null);
   const [editingStage, setEditingStage] = useState<string | null>(null);
   const [showRevertDialog, setShowRevertDialog] = useState(false);
-  
+
   // Drag state
   const [draggedStage, setDraggedStage] = useState<{ phaseId: string; moduleId: string; index: number } | null>(null);
   const [dragOverStage, setDragOverStage] = useState<{ phaseId: string; index: number } | null>(null);
@@ -102,13 +98,13 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
       if (detail) {
         setTemplate(detail.template);
         setPhases(detail.phases);
-        
+
         // If this is a system template, also load the original for revert functionality
         if (detail.template.isSystem) {
           // Store the original system template for revert
           setOriginalSystemTemplate(detail);
         }
-        
+
         // Expand first phase by default
         if (detail.phases.length > 0) {
           setExpandedPhases(new Set([detail.phases[0].id]));
@@ -126,7 +122,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
   // Save changes
   async function handleSave() {
     if (!template) return;
-    
+
     setSaving(true);
     try {
       await updateTemplate(template.id, {
@@ -144,13 +140,13 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
   // Revert to original system template
   async function handleRevert() {
     if (!originalSystemTemplate) return;
-    
+
     // Restore the original system template data
     setTemplate(originalSystemTemplate.template);
     setPhases(originalSystemTemplate.phases);
     setHasChanges(false);
     setShowRevertDialog(false);
-    
+
     // TODO: In production, this would delete any org-level overrides
     // and reload the original system template from the database
   }
@@ -178,7 +174,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
   // Phase operations
   async function handleAddPhase() {
     if (!template) return;
-    
+
     try {
       const newPhase = await addTemplatePhase(template.id, {
         name: `Phase ${phases.length + 1}`,
@@ -213,7 +209,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
       return;
     }
     if (!confirm("Delete this phase and all its stages?")) return;
-    
+
     try {
       await deleteTemplatePhase(phaseId);
       setPhases(phases.filter(p => p.id !== phaseId));
@@ -232,14 +228,14 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
         customName: `New Stage ${(phase?.modules.length || 0) + 1}`,
         order: phase?.modules.length || 0,
       });
-      
+
       if (newModule) {
         const moduleWithType: ModuleWithType = {
           ...newModule,
-          moduleType: defaultModuleTypes.find(mt => mt.code === "files") || defaultModuleTypes[0],
+          moduleType: defaultStageTypes.find(mt => mt.code === "files") || defaultStageTypes[0],
         };
-        setPhases(phases.map(p => 
-          p.id === phaseId 
+        setPhases(phases.map(p =>
+          p.id === phaseId
             ? { ...p, modules: [...p.modules, moduleWithType] }
             : p
         ));
@@ -256,7 +252,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
       await updateTemplateModule(moduleId, {
         customName: updates.customName,
       });
-      
+
       setPhases(phases.map(p => {
         if (p.id !== phaseId) return p;
         return {
@@ -267,8 +263,8 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
               ...m,
               customName: updates.customName ?? m.customName,
               moduleTypeId: updates.moduleTypeId ?? m.moduleTypeId,
-              moduleType: updates.moduleTypeId 
-                ? defaultModuleTypes.find(mt => mt.code === updates.moduleTypeId) || m.moduleType
+              moduleType: updates.moduleTypeId
+                ? defaultStageTypes.find(mt => mt.code === updates.moduleTypeId) || m.moduleType
                 : m.moduleType,
             };
           }),
@@ -283,11 +279,11 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
 
   async function handleDeleteStage(phaseId: string, moduleId: string) {
     if (!confirm("Delete this stage?")) return;
-    
+
     try {
       await deleteTemplateModule(moduleId);
-      setPhases(phases.map(p => 
-        p.id === phaseId 
+      setPhases(phases.map(p =>
+        p.id === phaseId
           ? { ...p, modules: p.modules.filter(m => m.id !== moduleId) }
           : p
       ));
@@ -307,7 +303,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
   function handleDragOver(e: React.DragEvent, phaseId: string, index: number) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    
+
     if (draggedStage && draggedStage.phaseId === phaseId) {
       setDragOverStage({ phaseId, index });
     }
@@ -319,7 +315,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
 
   async function handleDrop(e: React.DragEvent, phaseId: string, dropIndex: number) {
     e.preventDefault();
-    
+
     if (!draggedStage || draggedStage.phaseId !== phaseId) {
       setDraggedStage(null);
       setDragOverStage(null);
@@ -336,12 +332,12 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
 
     // Update order
     const reorderedIds = newModules.map(m => m.id);
-    
+
     try {
       await reorderTemplateModules(phaseId, reorderedIds);
-      
-      setPhases(phases.map(p => 
-        p.id === phaseId 
+
+      setPhases(phases.map(p =>
+        p.id === phaseId
           ? { ...p, modules: newModules.map((m, i) => ({ ...m, order: i })) }
           : p
       ));
@@ -390,7 +386,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
         <div className="flex-1">
           <PageHeader
             title={`Customize: ${template.name}`}
-            description={isSystemTemplate 
+            description={isSystemTemplate
               ? "Your changes will apply to your organization only"
               : "Edit template phases and stages"
             }
@@ -480,11 +476,11 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                     <ChevronRight className="h-4 w-4" />
                   )}
                 </button>
-                
+
                 {editingPhaseName === phase.id ? (
                   <Input
                     value={phase.name}
-                    onChange={(e) => setPhases(phases.map(p => 
+                    onChange={(e) => setPhases(phases.map(p =>
                       p.id === phase.id ? { ...p, name: e.target.value } : p
                     ))}
                     onBlur={() => handleUpdatePhaseName(phase.id, phase.name)}
@@ -503,9 +499,9 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                     {phase.name}
                   </button>
                 )}
-                
+
                 <Badge variant="secondary">{phase.modules.length} stages</Badge>
-                
+
                 <Button
                   variant="ghost"
                   size="icon"
@@ -540,7 +536,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                           {dragOverStage?.phaseId === phase.id && dragOverStage?.index === index && (
                             <div className="h-1 bg-brand rounded mb-2" />
                           )}
-                          
+
                           <div
                             draggable
                             onDragStart={(e) => handleDragStart(e, phase.id, module.id, index)}
@@ -557,16 +553,18 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                           >
                             <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                             <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
-                            
+
                             {editingStage === module.id ? (
                               <>
                                 <Input
                                   value={module.customName || ""}
-                                  onChange={(e) => setPhases(phases.map(p => 
-                                    p.id === phase.id 
-                                      ? { ...p, modules: p.modules.map(m => 
+                                  onChange={(e) => setPhases(phases.map(p =>
+                                    p.id === phase.id
+                                      ? {
+                                        ...p, modules: p.modules.map(m =>
                                           m.id === module.id ? { ...m, customName: e.target.value } : m
-                                        )}
+                                        )
+                                      }
                                       : p
                                   ))}
                                   className="h-8 flex-1"
@@ -575,17 +573,19 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                                 />
                                 <Select
                                   value={module.moduleTypeId}
-                                  onValueChange={(value) => setPhases(phases.map(p => 
-                                    p.id === phase.id 
-                                      ? { ...p, modules: p.modules.map(m => 
-                                          m.id === module.id 
-                                            ? { 
-                                                ...m, 
-                                                moduleTypeId: value,
-                                                moduleType: defaultModuleTypes.find(mt => mt.code === value) || m.moduleType
-                                              } 
+                                  onValueChange={(value) => setPhases(phases.map(p =>
+                                    p.id === phase.id
+                                      ? {
+                                        ...p, modules: p.modules.map(m =>
+                                          m.id === module.id
+                                            ? {
+                                              ...m,
+                                              moduleTypeId: value,
+                                              moduleType: defaultStageTypes.find(mt => mt.code === value) || m.moduleType
+                                            }
                                             : m
-                                        )}
+                                        )
+                                      }
                                       : p
                                   ))}
                                 >
@@ -593,7 +593,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {defaultModuleTypes.map(type => (
+                                    {defaultStageTypes.map(type => (
                                       <SelectItem key={type.code} value={type.code}>
                                         {type.defaultName}
                                       </SelectItem>
@@ -649,7 +649,7 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                           </div>
                         </div>
                       ))}
-                      
+
                       {/* Drop zone at end */}
                       <div
                         onDragOver={(e) => handleDragOver(e, phase.id, phase.modules.length)}
@@ -657,12 +657,12 @@ export default function TemplateEditorPage({ params }: TemplateEditorPageProps) 
                         onDrop={(e) => handleDrop(e, phase.id, phase.modules.length)}
                         className={cn(
                           "h-8 rounded border-2 border-dashed border-transparent transition-colors",
-                          dragOverStage?.phaseId === phase.id && 
-                          dragOverStage?.index === phase.modules.length && 
+                          dragOverStage?.phaseId === phase.id &&
+                          dragOverStage?.index === phase.modules.length &&
                           "border-brand bg-brand/5"
                         )}
                       />
-                      
+
                       <Button
                         variant="outline"
                         size="sm"

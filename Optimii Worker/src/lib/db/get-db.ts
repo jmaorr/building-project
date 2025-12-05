@@ -19,7 +19,7 @@ export async function getDb() {
     
     // Fallback: try direct access via Symbol
     const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
-    const contextGetter = (globalThis as any)[cloudflareContextSymbol];
+    const contextGetter = (globalThis as Record<symbol, unknown>)[cloudflareContextSymbol];
     const cloudflareContext = typeof contextGetter === "function" 
       ? contextGetter() 
       : contextGetter;
@@ -31,7 +31,7 @@ export async function getDb() {
     }
     
     // Last resort: try direct global access
-    const directBinding = (globalThis as any).DB as D1Database | undefined;
+    const directBinding = (globalThis as { DB?: D1Database }).DB;
     if (directBinding) {
       return createDb(directBinding);
     }

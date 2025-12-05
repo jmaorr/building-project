@@ -40,7 +40,7 @@ export function BrandProvider({ children, initialBrand }: BrandProviderProps) {
     ...defaultBrand,
     ...initialBrand,
     accentColor: initialBrand?.accentColor || organization.accentColor || defaultBrand.accentColor,
-    logoUrl: initialBrand?.logoUrl || organization.logoUrl,
+    logoUrl: initialBrand?.logoUrl || organization.logoUrl || undefined,
     orgName: initialBrand?.orgName || organization.name || defaultBrand.orgName,
   });
 

@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, DollarSign, Receipt } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { CostCard } from "./cost-card";
 import { AddCostDialog } from "./add-cost-dialog";
 import { getCostsByStage, type CostWithFiles } from "@/lib/actions/costs";

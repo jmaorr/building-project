@@ -9,10 +9,10 @@
  */
 
 // =============================================================================
-// MODULE TYPES: System-defined module types
+// STAGE TYPES: System-defined stage types
 // =============================================================================
 
-export const defaultModuleTypes = [
+export const defaultStageTypes = [
   {
     code: "files",
     defaultName: "Documents",
@@ -57,7 +57,7 @@ export const defaultModuleTypes = [
   },
 ] as const;
 
-export type ModuleTypeCode = typeof defaultModuleTypes[number]["code"];
+export type StageTypeCode = typeof defaultStageTypes[number]["code"];
 
 // =============================================================================
 // CONTACT ROLES: Standard roles for building projects
@@ -239,19 +239,19 @@ export const systemTemplates = [newBuildTemplate, renovationTemplate] as const;
 export const defaultProjectTemplate = newBuildTemplate;
 
 // =============================================================================
-// HELPER: Get module type by code
+// HELPER: Get stage type by code
 // =============================================================================
 
-export function getModuleTypeByCode(code: ModuleTypeCode) {
-  return defaultModuleTypes.find((m) => m.code === code);
+export function getStageTypeByCode(code: StageTypeCode) {
+  return defaultStageTypes.find((m) => m.code === code);
 }
 
 // =============================================================================
-// HELPER: Get all module codes
+// HELPER: Get all stage codes
 // =============================================================================
 
-export function getAllModuleCodes(): ModuleTypeCode[] {
-  return defaultModuleTypes.map((m) => m.code);
+export function getAllStageCodes(): StageTypeCode[] {
+  return defaultStageTypes.map((m) => m.code);
 }
 
 

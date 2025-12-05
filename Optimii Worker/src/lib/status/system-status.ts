@@ -9,7 +9,7 @@ export interface SystemStatus {
 }
 
 export async function getSystemStatus(): Promise<SystemStatus> {
-  const hasDatabase = !!(await getD1Database());
+  const hasDatabase = !!getD1Database();
   const hasClerk = Boolean(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
   );

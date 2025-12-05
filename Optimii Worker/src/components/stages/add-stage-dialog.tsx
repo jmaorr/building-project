@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { 
-  Plus, 
+import {
+  Plus,
   Loader2,
   FileText,
   CheckSquare,
@@ -29,7 +29,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { createStage } from "@/lib/actions/projects";
-import { defaultModuleTypes } from "@/lib/db/seed";
+import { defaultStageTypes } from "@/lib/db/seed";
 
 const iconMap: Record<string, React.ElementType> = {
   FileText,
@@ -59,18 +59,19 @@ interface AddStageDialogProps {
   trigger?: React.ReactNode;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function AddStageDialog({ phaseId, projectId, phaseSlug, trigger }: AddStageDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Form state
   const [selectedType, setSelectedType] = useState<string>("files");
   const [name, setName] = useState("");
   const [allowsRounds, setAllowsRounds] = useState(false);
   const [requiresApproval, setRequiresApproval] = useState(false);
 
-  const selectedModuleType = defaultModuleTypes.find(mt => mt.code === selectedType);
+  const selectedModuleType = defaultStageTypes.find(mt => mt.code === selectedType);
 
   function resetForm() {
     setSelectedType("files");
@@ -85,17 +86,17 @@ export function AddStageDialog({ phaseId, projectId, phaseSlug, trigger }: AddSt
 
     setIsSubmitting(true);
     try {
-      const stage = await createStage(phaseId, {
+      await createStage(phaseId, {
         name: name.trim(),
         moduleTypeId: selectedType,
         allowsRounds,
         requiresApproval,
       });
-      
+
       setOpen(false);
       resetForm();
       router.refresh();
-      
+
       // Optionally navigate to the new stage
       // router.push(`/projects/${projectId}/${phaseSlug}/stages/${stage.id}`);
     } catch (error) {
@@ -132,11 +133,11 @@ export function AddStageDialog({ phaseId, projectId, phaseSlug, trigger }: AddSt
             <div className="space-y-2">
               <Label>Stage Type</Label>
               <div className="grid grid-cols-2 gap-2">
-                {defaultModuleTypes.map(type => {
+                {defaultStageTypes.map(type => {
                   const Icon = iconMap[type.icon] || FileText;
                   const status = implementationStatus[type.code];
                   const isSelected = selectedType === type.code;
-                  
+
                   return (
                     <button
                       key={type.code}

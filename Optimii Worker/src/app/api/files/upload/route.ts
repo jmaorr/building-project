@@ -38,12 +38,13 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const projectId = formData.get("projectId") as string;
-    const stageId = formData.get("stageId") as string;
+    const stageId = formData.get("stageId") as string | null;
+    const costId = formData.get("costId") as string | null;
     const roundNumber = parseInt(formData.get("roundNumber") as string) || 1;
 
-    if (!file || !projectId || !stageId) {
+    if (!file || !projectId || (!stageId && !costId)) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing required fields: need either stageId or costId" },
         { status: 400 }
       );
     }
@@ -52,12 +53,26 @@ export async function POST(request: NextRequest) {
 
     if (r2Bucket) {
       // Upload to R2
-      const r2Path = generateR2Path(projectId, stageId, roundNumber, file.name);
+      let r2Path: string;
+      if (costId) {
+        // For costs, use a different path structure
+        const sanitizedFilename = file.name
+          .replace(/[^a-zA-Z0-9.-]/g, "_")
+          .replace(/\s+/g, "_");
+        const timestamp = Date.now();
+        r2Path = `projects/${projectId}/costs/${costId}/${timestamp}-${sanitizedFilename}`;
+      } else if (stageId) {
+        // For stages, use the existing path structure
+        r2Path = generateR2Path(projectId, stageId, roundNumber, file.name);
+      } else {
+        throw new Error("Either stageId or costId must be provided");
+      }
       publicUrl = await uploadToR2(file, r2Path, r2Bucket);
     } else {
       // Fallback: Use placeholder URL (for development or when R2 is not accessible)
       console.warn("R2 bucket not available, using placeholder URL");
-      publicUrl = `/api/files/${stageId}/${Date.now()}-${file.name}`;
+      const identifier = costId || stageId || "";
+      publicUrl = `/api/files/${identifier}/${Date.now()}-${file.name}`;
     }
 
     // Determine the user ID for the database
@@ -95,7 +110,8 @@ export async function POST(request: NextRequest) {
         }
       } catch (userError) {
         console.error("Error getting/creating user:", userError);
-        // Fall back to dev user ID
+        // Fall back to dev user ID - this is okay, file upload can proceed
+        // The user creation error is logged but doesn't block file upload
       }
     }
 
@@ -104,8 +120,9 @@ export async function POST(request: NextRequest) {
       const fileId = crypto.randomUUID();
       const newFile = {
         id: fileId,
-        stageId,
-        moduleId: stageId, // Keep for backward compatibility
+        stageId: stageId || null,
+        moduleId: stageId || null, // Keep for backward compatibility
+        costId: costId || null,
         name: file.name,
         url: publicUrl,
         type: file.type || null,
@@ -116,7 +133,17 @@ export async function POST(request: NextRequest) {
         createdAt: new Date(),
       };
 
+      console.log("Inserting file with data:", {
+        id: fileId,
+        stageId: newFile.stageId,
+        costId: newFile.costId,
+        name: newFile.name,
+        url: newFile.url,
+      });
+
       await db.insert(files).values(newFile).run();
+
+      console.log("File inserted successfully:", fileId);
 
       return NextResponse.json({
         success: true,
@@ -124,10 +151,25 @@ export async function POST(request: NextRequest) {
       });
     } catch (dbError) {
       console.error("Database error during file upload:", dbError);
+      const errorMessage = dbError instanceof Error ? dbError.message : "Database error";
+      
+      // Check if this is a NOT NULL constraint error for stage_id
+      if (errorMessage.includes("stage_id") || errorMessage.includes("NOT NULL")) {
+        console.error("Database schema issue: stage_id is required but file is for a cost. Migration 0006_make_stage_id_nullable.sql needs to be applied.");
+        return NextResponse.json(
+          { 
+            error: "Database schema error: stage_id constraint. Please apply migration 0006_make_stage_id_nullable.sql to make stage_id nullable for cost file attachments.",
+            details: errorMessage,
+            url: publicUrl
+          },
+          { status: 500 }
+        );
+      }
+      
       return NextResponse.json(
         { 
           error: "File uploaded but failed to save metadata", 
-          details: dbError instanceof Error ? dbError.message : "Database error",
+          details: errorMessage,
           url: publicUrl
         },
         { status: 500 }

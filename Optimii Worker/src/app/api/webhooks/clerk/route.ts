@@ -2,7 +2,7 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { WebhookEvent } from "@clerk/nextjs/server";
 import { getD1Database } from "@/lib/cloudflare/get-env";
-import { createDb, schema } from "@/lib/db";
+import { createDb, schema, type D1Database } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { UserType } from "@/lib/db/schema";
 
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     const userType = (unsafe_metadata?.userType as UserType) || null;
 
     try {
-      const d1 = getD1Database();
+      const d1 = getD1Database() as D1Database | null;
       if (!d1) {
         console.error("D1 database not available");
         return new Response("Database not available", { status: 500 });
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
     const primaryEmail = email_addresses.find(e => e.id === evt.data.primary_email_address_id)?.email_address;
 
     try {
-      const d1 = getD1Database();
+      const d1 = getD1Database() as D1Database | null;
       if (!d1) {
         return new Response("Database not available", { status: 500 });
       }
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
     const { id } = evt.data;
 
     try {
-      const d1 = getD1Database();
+      const d1 = getD1Database() as D1Database | null;
       if (!d1) {
         return new Response("Database not available", { status: 500 });
       }

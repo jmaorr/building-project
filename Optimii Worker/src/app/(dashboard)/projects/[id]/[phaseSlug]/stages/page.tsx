@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProject, getProjectPhases, getPhaseStages } from "@/lib/actions/projects";
 import { PageHeader } from "@/components/layout";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/projects/status-badge";
 import { resolvePhaseFromSlug } from "@/lib/utils/slug";
 import {

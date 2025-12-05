@@ -1,10 +1,16 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Settings, MoreHorizontal } from "lucide-react";
-import { getProject, getProjectPhases, getStage } from "@/lib/actions/projects";
+import { getProject, getStage } from "@/lib/actions/projects";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/projects/status-badge";
-import { EnhancedFilesModule } from "@/components/modules/enhanced-files-module";
+import { EnhancedFilesStage } from "@/components/stages/enhanced-files-module";
+import { TasksStage } from "@/components/stages/tasks-module";
+import { CostsStage } from "@/components/stages/costs-module";
+import { PaymentsStage } from "@/components/stages/payments-module";
+import { NotesStage } from "@/components/stages/notes-module";
+import { TimelineStage } from "@/components/stages/timeline-module";
+import { ApprovalsStage } from "@/components/stages/approvals-module";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,13 +27,12 @@ interface StageDetailPageProps {
 
 export default async function StageDetailPage({ params }: StageDetailPageProps) {
   const { id, phaseSlug, stageId } = await params;
-  const [project, phases, stage, currentUser] = await Promise.all([
+  const [project, stage, currentUser] = await Promise.all([
     getProject(id),
-    getProjectPhases(id),
     getStage(stageId),
     getCurrentUser(),
   ]);
-  
+
   if (!project || !stage) {
     notFound();
   }
@@ -36,8 +41,51 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
     notFound();
   }
 
-  const phase = phases.find(p => p.id === stage.phaseId);
-  const phaseName = phase?.name || "Phase";
+  const renderStageContent = () => {
+    const commonProps = {
+      stageId: stage.id,
+      stageName: stage.name,
+      projectId: id,
+    };
+
+    switch (stage.moduleType.code) {
+      case "files":
+        return (
+          <EnhancedFilesStage
+            stage={stage as Stage & { moduleType: { code: string; defaultName: string } }}
+            projectId={id}
+            phaseId={stage.phaseId}
+            currentUserId={currentUser.id}
+          />
+        );
+      case "tasks":
+        return <TasksStage {...commonProps} />;
+      case "costs":
+        return <CostsStage {...commonProps} />;
+      case "payments":
+        return <PaymentsStage {...commonProps} />;
+      case "notes":
+        return <NotesStage {...commonProps} />;
+      case "timeline":
+        return <TimelineStage {...commonProps} />;
+      case "approvals":
+        return (
+          <ApprovalsStage
+            {...commonProps}
+            currentRound={stage.currentRound}
+            currentUserId={currentUser.id}
+          />
+        );
+      default:
+        return (
+          <div className="p-8 text-center border rounded-lg bg-muted/10">
+            <p className="text-muted-foreground">
+              This stage type ({(stage.moduleType as { defaultName: string }).defaultName}) is not yet implemented.
+            </p>
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -50,7 +98,7 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
             <span className="sr-only">Back to stages</span>
           </Link>
         </Button>
-        
+
         {/* Title and meta */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
@@ -78,7 +126,7 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
             )}
           </div>
         </div>
-        
+
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Desktop actions */}
@@ -86,7 +134,7 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
             <Settings className="mr-2 h-4 w-4" />
             Configure
           </Button>
-          
+
           {/* Mobile menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -110,12 +158,7 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
       </div>
 
       {/* Stage Module Content */}
-      <EnhancedFilesModule 
-        stage={stage as Stage & { moduleType: { code: string; defaultName: string } }} 
-        projectId={id}
-        phaseId={stage.phaseId}
-        currentUserId={currentUser.id}
-      />
+      {renderStageContent()}
     </div>
   );
 }

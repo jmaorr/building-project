@@ -1,12 +1,12 @@
 "use server";
 
-import type { Note, NewNote, User, Contact } from "@/lib/db/schema";
+import type { Note, User, Contact } from "@/lib/db/schema";
 
 // =============================================================================
 // MOCK DATA STORE (Replace with D1 database operations in production)
 // =============================================================================
 
-let mockNotes: Note[] = [];
+const mockNotes: Note[] = [];
 
 // =============================================================================
 // COMMENT ACTIONS

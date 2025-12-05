@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Moon, Sun, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
-import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +17,7 @@ interface ThemeToggleSidebarProps {
 }
 
 export function ThemeToggleSidebar({ asMenuItem = false }: ThemeToggleSidebarProps) {
-  const { setTheme, theme } = useTheme();
+  const { setTheme } = useTheme();
 
   if (asMenuItem) {
     return (

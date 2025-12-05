@@ -58,8 +58,8 @@ export default async function PhaseDashboardPage({ params }: PhaseDashboardPageP
   // Count approval statuses
   const approvedCount = Object.values(approvalStatuses).filter(s => s.status === "approved").length;
   const pendingCount = Object.values(approvalStatuses).filter(s => s.status === "pending").length;
-  const rejectedCount = Object.values(approvalStatuses).filter(s => s.status === "rejected").length;
-  const needsApprovalCount = stages.filter(s => s.requiresApproval).length - approvedCount;
+  // const rejectedCount = Object.values(approvalStatuses).filter(s => s.status === "rejected").length;
+  // const needsApprovalCount = stages.filter(s => s.requiresApproval).length - approvedCount;
   
   const progressPercent = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
 

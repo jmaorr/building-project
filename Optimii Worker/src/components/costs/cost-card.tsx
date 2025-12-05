@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  DollarSign, 
   MoreVertical, 
   Edit2, 
   Trash2, 
   FileText, 
   CheckCircle2, 
   Clock, 
-  Ban,
   CreditCard,
   ExternalLink,
   ChevronDown,
@@ -36,7 +34,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileThumbnail } from "@/components/files";
 import { 
   deleteCost, 
   markAsQuoted, 

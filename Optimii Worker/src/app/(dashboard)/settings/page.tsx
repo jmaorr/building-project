@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { TemplatesSettings } from "@/components/settings/templates-settings";
 import { StatusSettings } from "@/components/settings/status-settings";
+import { TeamSettings } from "@/components/settings/team-settings";
 
 export default function SettingsPage() {
   return (
@@ -18,6 +19,7 @@ export default function SettingsPage() {
         <TabsList className="flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="statuses">Statuses</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -84,6 +86,10 @@ export default function SettingsPage() {
               <Button>Save Changes</Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="team" className="space-y-4">
+          <TeamSettings />
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">

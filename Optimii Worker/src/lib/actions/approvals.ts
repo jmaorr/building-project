@@ -1,10 +1,13 @@
 "use server";
 
 import { eq, and, desc } from "drizzle-orm";
-import { createDb } from "@/lib/db";
-import { approvals, stages as stagesTable } from "@/lib/db/schema";
+import { revalidatePath } from "next/cache";
+import { createDb, type D1Database } from "@/lib/db";
+import { approvals, stages as stagesTable, phases } from "@/lib/db/schema";
 import { getD1Database } from "@/lib/cloudflare/get-env";
 import type { Approval } from "@/lib/db/schema";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { canEditProject } from "@/lib/auth/permissions";
 
 // Extended approval type with assignee info
 export type ApprovalWithAssignee = Approval & {
@@ -25,16 +28,16 @@ export async function getApprovalsByStage(
   roundNumber?: number
 ): Promise<ApprovalWithAssignee[]> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       console.warn("D1 database not available, returning empty array");
       return [];
     }
-    
+
     const db = createDb(d1);
-    
+
     let query = db.select().from(approvals).where(eq(approvals.stageId, stageId));
-    
+
     if (roundNumber !== undefined) {
       query = db.select().from(approvals).where(
         and(
@@ -43,9 +46,9 @@ export async function getApprovalsByStage(
         )
       );
     }
-    
+
     const results = await query.orderBy(desc(approvals.requestedAt));
-    
+
     return results.map(r => ({
       ...r,
       assignedTo: r.assignedTo,
@@ -62,33 +65,40 @@ export async function getApprovalsByStage(
  * Request a new approval
  */
 export async function requestApproval(data: {
+  projectId: string;
   stageId: string;
   roundNumber: number;
   message?: string;
   assignedTo: string;
   assigneeName?: string;
-  requestedBy: string;
-  requesterName?: string;
 }): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       console.error("D1 database not available");
       return null;
     }
-    
+
+    const user = await getCurrentUser();
+    if (!user) throw new Error("You must be signed in to request approval");
+
+    if (!await canEditProject(data.projectId)) {
+      throw new Error("Unauthorized: You do not have permission to request approvals");
+    }
+
     const db = createDb(d1);
     const now = new Date();
-    
+
     const newApproval = {
+      id: crypto.randomUUID(),
       stageId: data.stageId,
       moduleId: data.stageId, // Keep for backward compatibility
       title: "Approval Request",
       description: data.message || null,
       status: "pending" as const,
       roundNumber: data.roundNumber,
-      requestedBy: data.requestedBy,
-      requesterName: data.requesterName || null,
+      requestedBy: user.id,
+      requesterName: `${user.firstName} ${user.lastName}`.trim(),
       requestedAt: now,
       assignedTo: data.assignedTo,
       assigneeName: data.assigneeName || null,
@@ -99,13 +109,15 @@ export async function requestApproval(data: {
       createdAt: now,
       updatedAt: now,
     };
-    
+
     const result = await db.insert(approvals).values(newApproval).returning();
-    
+
     if (result.length === 0) {
       return null;
     }
-    
+
+    revalidatePath(`/projects/${data.projectId}`);
+
     return {
       ...result[0],
       assignedTo: result[0].assignedTo,
@@ -123,51 +135,75 @@ export async function requestApproval(data: {
  */
 export async function approveApproval(
   id: string,
-  approvedBy: string,
   notes?: string
 ): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       console.error("D1 database not available");
       return null;
     }
-    
+
+    const user = await getCurrentUser();
+    if (!user) throw new Error("You must be signed in to approve");
+
     const db = createDb(d1);
+
+    // Get approval to check permissions
+    const approval = await db.select().from(approvals).where(eq(approvals.id, id)).get();
+    if (!approval) return null;
+
+    const stage = await db.select().from(stagesTable).where(eq(stagesTable.id, approval.stageId)).get();
+    if (!stage) return null;
+
+    const phase = await db.select().from(phases).where(eq(phases.id, stage.phaseId)).get();
+    if (!phase) return null;
+
+    // Check if user is assignee or has admin permissions
+    const canEdit = await canEditProject(phase.projectId);
+    const isAssignee = approval.assignedTo === user.id;
+
+    if (!canEdit && !isAssignee) {
+      throw new Error("Unauthorized: You do not have permission to approve this request");
+    }
+
     const now = new Date();
-    
+    const approverName = `${user.firstName} ${user.lastName}`.trim();
+
     const result = await db.update(approvals)
       .set({
         status: "approved",
-        approvedBy,
+        approvedBy: approverName,
         approvedAt: now,
         notes: notes || null,
         updatedAt: now,
       })
       .where(eq(approvals.id, id))
       .returning();
-    
+
     if (result.length === 0) {
       return null;
     }
-    
-    const approval = result[0];
-    
+
+    const updatedApproval = result[0];
+
     // Auto-complete the stage when approval is granted
-    if (approval.stageId) {
+    if (updatedApproval.stageId) {
       await db.update(stagesTable)
         .set({
           status: "completed",
           updatedAt: now,
         })
-        .where(eq(stagesTable.id, approval.stageId));
+        .where(eq(stagesTable.id, updatedApproval.stageId));
     }
-    
+
+    revalidatePath(`/projects/${phase.projectId}`);
+
     return {
-      ...approval,
-      assignedTo: approval.assignedTo,
-      assigneeName: approval.assigneeName,
-      requesterName: approval.requesterName,
+      ...updatedApproval,
+      assignedTo: updatedApproval.assignedTo,
+      assigneeName: updatedApproval.assigneeName,
+      requesterName: updatedApproval.requesterName,
     };
   } catch (error) {
     console.error("Error approving:", error);
@@ -180,34 +216,58 @@ export async function approveApproval(
  */
 export async function rejectApproval(
   id: string,
-  rejectedBy: string,
   notes?: string
 ): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       console.error("D1 database not available");
       return null;
     }
-    
+
+    const user = await getCurrentUser();
+    if (!user) throw new Error("You must be signed in to reject");
+
     const db = createDb(d1);
+
+    // Get approval to check permissions
+    const approval = await db.select().from(approvals).where(eq(approvals.id, id)).get();
+    if (!approval) return null;
+
+    const stage = await db.select().from(stagesTable).where(eq(stagesTable.id, approval.stageId)).get();
+    if (!stage) return null;
+
+    const phase = await db.select().from(phases).where(eq(phases.id, stage.phaseId)).get();
+    if (!phase) return null;
+
+    // Check if user is assignee or has admin permissions
+    const canEdit = await canEditProject(phase.projectId);
+    const isAssignee = approval.assignedTo === user.id;
+
+    if (!canEdit && !isAssignee) {
+      throw new Error("Unauthorized: You do not have permission to reject this request");
+    }
+
     const now = new Date();
-    
+    const rejectorName = `${user.firstName} ${user.lastName}`.trim();
+
     const result = await db.update(approvals)
       .set({
         status: "rejected",
-        approvedBy: rejectedBy,
+        approvedBy: rejectorName, // Using approvedBy field for rejector name as well
         approvedAt: now,
         notes: notes || null,
         updatedAt: now,
       })
       .where(eq(approvals.id, id))
       .returning();
-    
+
     if (result.length === 0) {
       return null;
     }
-    
+
+    revalidatePath(`/projects/${phase.projectId}`);
+
     return {
       ...result[0],
       assignedTo: result[0].assignedTo,
@@ -225,18 +285,18 @@ export async function rejectApproval(
  */
 export async function getApproval(id: string): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       return null;
     }
-    
+
     const db = createDb(d1);
     const result = await db.select().from(approvals).where(eq(approvals.id, id));
-    
+
     if (result.length === 0) {
       return null;
     }
-    
+
     return {
       ...result[0],
       assignedTo: result[0].assignedTo,
@@ -257,16 +317,16 @@ export async function getStageApprovalStatus(stageId: string, roundNumber: numbe
   approval: ApprovalWithAssignee | null;
 }> {
   const approvalsList = await getApprovalsByStage(stageId, roundNumber);
-  
+
   const pending = approvalsList.find((a) => a.status === "pending");
   if (pending) return { status: "pending", approval: pending };
-  
+
   const approved = approvalsList.find((a) => a.status === "approved");
   if (approved) return { status: "approved", approval: approved };
-  
+
   const rejected = approvalsList.find((a) => a.status === "rejected");
   if (rejected) return { status: "rejected", approval: rejected };
-  
+
   return { status: "none", approval: null };
 }
 
@@ -277,10 +337,10 @@ export async function getStagesApprovalStatuses(stages: { id: string; currentRou
   Record<string, { status: "none" | "pending" | "approved" | "rejected"; approval: ApprovalWithAssignee | null }>
 > {
   const result: Record<string, { status: "none" | "pending" | "approved" | "rejected"; approval: ApprovalWithAssignee | null }> = {};
-  
+
   for (const stage of stages) {
     result[stage.id] = await getStageApprovalStatus(stage.id, stage.currentRound);
   }
-  
+
   return result;
 }

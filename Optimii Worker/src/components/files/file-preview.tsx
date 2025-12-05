@@ -11,7 +11,8 @@ import {
   FileText,
   Image as ImageIcon,
   File,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,8 +96,8 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 gap-0 flex flex-col">
+    <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
+      <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" showCloseButton={false}>
         <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0 gap-4">
           <DialogTitle className="text-sm font-medium truncate flex-1">
             {file.name}
@@ -137,8 +138,18 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
               size="icon"
               className="h-8 w-8"
               onClick={handleDownload}
+              title="Download"
             >
               <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onOpenChange(false)}
+              title="Close"
+            >
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </DialogHeader>

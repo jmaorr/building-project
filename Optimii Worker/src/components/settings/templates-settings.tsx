@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
   DialogTitle,
-  DialogFooter 
+  DialogFooter
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -31,11 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Edit, 
-  Trash2, 
-  Plus, 
-  ChevronDown, 
+import {
+  Edit,
+  Trash2,
+  Plus,
+  ChevronDown,
   ChevronRight,
   FileText,
   Loader2,
@@ -48,11 +48,11 @@ import {
   Edit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ProjectTemplate, TemplatePhase, TemplateModule } from "@/lib/db/schema";
-import { 
-  getOrgTemplates, 
-  getTemplate, 
-  createTemplate, 
+import type { ProjectTemplate, TemplatePhase, TemplateStage } from "@/lib/db/schema";
+import {
+  getOrgTemplates,
+  getTemplate,
+  createTemplate,
   deleteTemplate,
   updateTemplate,
   addTemplatePhase,
@@ -63,10 +63,10 @@ import {
   deleteTemplateModule,
   reorderTemplateModules,
 } from "@/lib/actions/templates";
-import { defaultModuleTypes } from "@/lib/db/seed";
+import { defaultStageTypes } from "@/lib/db/seed";
 import { useOrganization } from "@/components/providers";
 
-type ModuleWithType = TemplateModule & { moduleType: typeof defaultModuleTypes[number] };
+type ModuleWithType = TemplateStage & { moduleType: typeof defaultStageTypes[number] };
 type PhaseWithModules = TemplatePhase & { modules: ModuleWithType[] };
 type TemplateDetail = {
   template: ProjectTemplate;
@@ -81,7 +81,7 @@ export function TemplatesSettings() {
   const [templateDetail, setTemplateDetail] = useState<TemplateDetail | null>(null);
   const [originalDetail, setOriginalDetail] = useState<TemplateDetail | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  
+
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -90,17 +90,12 @@ export function TemplatesSettings() {
   const [editingPhaseName, setEditingPhaseName] = useState<string | null>(null);
   const [editingStage, setEditingStage] = useState<string | null>(null);
   const [showRevertDialog, setShowRevertDialog] = useState(false);
-  
+
   // Drag state
   const [draggedStage, setDraggedStage] = useState<{ phaseId: string; moduleId: string; index: number } | null>(null);
   const [dragOverStage, setDragOverStage] = useState<{ phaseId: string; index: number } | null>(null);
 
-  // Load templates
-  useEffect(() => {
-    loadTemplates();
-  }, [orgId]);
-
-  async function loadTemplates() {
+  const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
       const orgTemplates = await getOrgTemplates(orgId);
@@ -110,7 +105,12 @@ export function TemplatesSettings() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [orgId]);
+
+  // Load templates
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   async function loadTemplateDetail(id: string) {
     try {
@@ -129,10 +129,10 @@ export function TemplatesSettings() {
     if (isEditing && hasChanges) {
       if (!confirm("You have unsaved changes. Discard them?")) return;
     }
-    
+
     setIsEditing(false);
     setHasChanges(false);
-    
+
     if (selectedTemplate === id) {
       setSelectedTemplate(null);
       setTemplateDetail(null);
@@ -150,7 +150,7 @@ export function TemplatesSettings() {
       return;
     }
     if (!confirm("Are you sure you want to delete this template?")) return;
-    
+
     try {
       await deleteTemplate(templateId);
       await loadTemplates();
@@ -183,7 +183,7 @@ export function TemplatesSettings() {
 
   async function handleSave() {
     if (!templateDetail) return;
-    
+
     setSaving(true);
     try {
       await updateTemplate(templateDetail.template.id, {
@@ -232,7 +232,7 @@ export function TemplatesSettings() {
   // Phase operations
   async function handleAddPhase() {
     if (!templateDetail) return;
-    
+
     try {
       const newPhase = await addTemplatePhase(templateDetail.template.id, {
         name: `Phase ${templateDetail.phases.length + 1}`,
@@ -275,7 +275,7 @@ export function TemplatesSettings() {
       return;
     }
     if (!confirm("Delete this phase and all its stages?")) return;
-    
+
     try {
       await deleteTemplatePhase(phaseId);
       setTemplateDetail({
@@ -298,16 +298,16 @@ export function TemplatesSettings() {
         customName: `New Stage ${(phase?.modules.length || 0) + 1}`,
         order: phase?.modules.length || 0,
       });
-      
+
       if (newModule) {
         const moduleWithType: ModuleWithType = {
           ...newModule,
-          moduleType: defaultModuleTypes.find(mt => mt.code === "files") || defaultModuleTypes[0],
+          moduleType: defaultStageTypes.find(mt => mt.code === "files") || defaultStageTypes[0],
         };
         setTemplateDetail({
           ...templateDetail,
-          phases: templateDetail.phases.map(p => 
-            p.id === phaseId 
+          phases: templateDetail.phases.map(p =>
+            p.id === phaseId
               ? { ...p, modules: [...p.modules, moduleWithType] }
               : p
           )
@@ -324,7 +324,7 @@ export function TemplatesSettings() {
     if (!templateDetail) return;
     try {
       await updateTemplateModule(moduleId, { customName: updates.customName });
-      
+
       setTemplateDetail({
         ...templateDetail,
         phases: templateDetail.phases.map(p => {
@@ -337,8 +337,8 @@ export function TemplatesSettings() {
                 ...m,
                 customName: updates.customName ?? m.customName,
                 moduleTypeId: updates.moduleTypeId ?? m.moduleTypeId,
-                moduleType: updates.moduleTypeId 
-                  ? defaultModuleTypes.find(mt => mt.code === updates.moduleTypeId) || m.moduleType
+                moduleType: updates.moduleTypeId
+                  ? defaultStageTypes.find(mt => mt.code === updates.moduleTypeId) || m.moduleType
                   : m.moduleType,
               };
             }),
@@ -355,13 +355,13 @@ export function TemplatesSettings() {
   async function handleDeleteStage(phaseId: string, moduleId: string) {
     if (!templateDetail) return;
     if (!confirm("Delete this stage?")) return;
-    
+
     try {
       await deleteTemplateModule(moduleId);
       setTemplateDetail({
         ...templateDetail,
-        phases: templateDetail.phases.map(p => 
-          p.id === phaseId 
+        phases: templateDetail.phases.map(p =>
+          p.id === phaseId
             ? { ...p, modules: p.modules.filter(m => m.id !== moduleId) }
             : p
         )
@@ -409,8 +409,8 @@ export function TemplatesSettings() {
       await reorderTemplateModules(phaseId, newModules.map(m => m.id));
       setTemplateDetail({
         ...templateDetail,
-        phases: templateDetail.phases.map(p => 
-          p.id === phaseId 
+        phases: templateDetail.phases.map(p =>
+          p.id === phaseId
             ? { ...p, modules: newModules.map((m, i) => ({ ...m, order: i })) }
             : p
         )
@@ -506,7 +506,7 @@ export function TemplatesSettings() {
                   </>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-2">
                 {isEditing ? (
                   <>
@@ -543,7 +543,7 @@ export function TemplatesSettings() {
               </div>
             </div>
           </CardHeader>
-          
+
           <CardContent>
             {isEditing ? (
               // Edit Mode
@@ -565,7 +565,7 @@ export function TemplatesSettings() {
                       <button onClick={() => togglePhase(phase.id)} className="p-1 hover:bg-accent rounded">
                         {expandedPhases.has(phase.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       </button>
-                      
+
                       {editingPhaseName === phase.id ? (
                         <Input
                           value={phase.name}
@@ -586,7 +586,7 @@ export function TemplatesSettings() {
                           {phase.name}
                         </button>
                       )}
-                      
+
                       <Badge variant="secondary">{phase.modules.length} stages</Badge>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeletePhase(phase.id)}>
                         <Trash2 className="h-4 w-4" />
@@ -611,7 +611,7 @@ export function TemplatesSettings() {
                                 {dragOverStage?.phaseId === phase.id && dragOverStage?.index === index && (
                                   <div className="h-1 bg-brand rounded mb-2" />
                                 )}
-                                
+
                                 <div
                                   draggable
                                   onDragStart={(e) => handleDragStart(e, phase.id, module.id, index)}
@@ -627,15 +627,15 @@ export function TemplatesSettings() {
                                 >
                                   <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                                   <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
-                                  
+
                                   {editingStage === module.id ? (
                                     <>
                                       <Input
                                         value={module.customName || ""}
                                         onChange={(e) => setTemplateDetail({
                                           ...templateDetail,
-                                          phases: templateDetail.phases.map(p => 
-                                            p.id === phase.id 
+                                          phases: templateDetail.phases.map(p =>
+                                            p.id === phase.id
                                               ? { ...p, modules: p.modules.map(m => m.id === module.id ? { ...m, customName: e.target.value } : m) }
                                               : p
                                           )
@@ -648,20 +648,22 @@ export function TemplatesSettings() {
                                         value={module.moduleTypeId}
                                         onValueChange={(value) => setTemplateDetail({
                                           ...templateDetail,
-                                          phases: templateDetail.phases.map(p => 
-                                            p.id === phase.id 
-                                              ? { ...p, modules: p.modules.map(m => 
-                                                  m.id === module.id 
-                                                    ? { ...m, moduleTypeId: value, moduleType: defaultModuleTypes.find(mt => mt.code === value) || m.moduleType }
+                                          phases: templateDetail.phases.map(p =>
+                                            p.id === phase.id
+                                              ? {
+                                                ...p, modules: p.modules.map(m =>
+                                                  m.id === module.id
+                                                    ? { ...m, moduleTypeId: value, moduleType: defaultStageTypes.find(mt => mt.code === value) || m.moduleType }
                                                     : m
-                                                )}
+                                                )
+                                              }
                                               : p
                                           )
                                         })}
                                       >
                                         <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                          {defaultModuleTypes.map(type => (
+                                          {defaultStageTypes.map(type => (
                                             <SelectItem key={type.code} value={type.code}>{type.defaultName}</SelectItem>
                                           ))}
                                         </SelectContent>
@@ -688,7 +690,7 @@ export function TemplatesSettings() {
                                 </div>
                               </div>
                             ))}
-                            
+
                             <div
                               onDragOver={(e) => handleDragOver(e, phase.id, phase.modules.length)}
                               onDragLeave={handleDragLeave}
@@ -698,7 +700,7 @@ export function TemplatesSettings() {
                                 dragOverStage?.phaseId === phase.id && dragOverStage?.index === phase.modules.length && "border-brand bg-brand/5"
                               )}
                             />
-                            
+
                             <Button variant="outline" size="sm" className="w-full" onClick={() => handleAddStage(phase.id)}>
                               <Plus className="mr-2 h-4 w-4" />
                               Add Stage
@@ -785,7 +787,7 @@ function TemplateListItem({ template, isSelected, onSelect, onDelete }: Template
           <p className="text-sm text-muted-foreground truncate mt-0.5">{template.description}</p>
         )}
       </div>
-      
+
       <div className="flex items-center gap-1">
         {onDelete && (
           <Button

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { DollarSign, Upload, X, User, Building, Lock, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { DollarSign, User, Building, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

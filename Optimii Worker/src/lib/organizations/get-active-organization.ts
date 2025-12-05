@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { auth } from "@clerk/nextjs/server";
-import { createDb } from "@/lib/db";
+import { createDb, type D1Database } from "@/lib/db";
 import { organizations } from "@/lib/db/schema";
 import { getD1Database } from "@/lib/cloudflare/get-env";
 
@@ -26,7 +26,7 @@ export async function getActiveOrganization(): Promise<ActiveOrganization> {
   const resolvedOrgId = clerkOrgId || DEFAULT_ORG_ID;
 
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       return {
         id: resolvedOrgId,

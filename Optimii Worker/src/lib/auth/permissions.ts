@@ -1,4 +1,4 @@
-"use server";
+
 
 import type { PermissionLevel } from "@/lib/db/schema";
 import { getProjectAccessForUser } from "@/lib/actions/contacts";
@@ -33,15 +33,14 @@ export function hasPermission(
  */
 export async function getEffectivePermission(
   userId: string,
-  projectId: string,
-  phaseId?: string
+  projectId: string
 ): Promise<PermissionLevel | null> {
   // Get all project access for this user
   const access = await getProjectAccessForUser(userId);
-  
+
   // Find access for this specific project
   const projectAccess = access.filter(a => a.projectId === projectId);
-  
+
   if (projectAccess.length === 0) {
     return null; // No access to this project
   }
@@ -49,7 +48,7 @@ export async function getEffectivePermission(
   // Get the highest permission level across all contacts linked to this user
   // for this project
   let highestPermission: PermissionLevel = "viewer";
-  
+
   for (const pa of projectAccess) {
     if (PERMISSION_LEVELS[pa.permission] > PERMISSION_LEVELS[highestPermission]) {
       highestPermission = pa.permission;
@@ -58,7 +57,7 @@ export async function getEffectivePermission(
 
   // TODO: If phaseId is provided, check for phase-level permission overrides
   // For now, we just use the project-level permission
-  
+
   return highestPermission;
 }
 
@@ -82,12 +81,13 @@ export async function canEditProject(projectId: string): Promise<boolean> {
  */
 export async function canEditPhase(
   projectId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   phaseId: string
 ): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
 
-  const permission = await getEffectivePermission(user.id, projectId, phaseId);
+  const permission = await getEffectivePermission(user.id, projectId);
   if (!permission) return false;
 
   return hasPermission(permission, "editor");
@@ -163,30 +163,30 @@ export interface PermissionCheck {
  */
 export async function checkEditPermission(projectId: string): Promise<PermissionCheck> {
   const user = await getCurrentUser();
-  
+
   if (!user) {
-    return { 
-      allowed: false, 
-      permission: null, 
-      message: "You must be signed in to edit" 
+    return {
+      allowed: false,
+      permission: null,
+      message: "You must be signed in to edit"
     };
   }
 
   const permission = await getEffectivePermission(user.id, projectId);
-  
+
   if (!permission) {
-    return { 
-      allowed: false, 
-      permission: null, 
-      message: "You don't have access to this project" 
+    return {
+      allowed: false,
+      permission: null,
+      message: "You don't have access to this project"
     };
   }
 
   if (!hasPermission(permission, "editor")) {
-    return { 
-      allowed: false, 
-      permission, 
-      message: "You need Editor or Admin access to make changes" 
+    return {
+      allowed: false,
+      permission,
+      message: "You need Editor or Admin access to make changes"
     };
   }
 
@@ -198,30 +198,30 @@ export async function checkEditPermission(projectId: string): Promise<Permission
  */
 export async function checkAdminPermission(projectId: string): Promise<PermissionCheck> {
   const user = await getCurrentUser();
-  
+
   if (!user) {
-    return { 
-      allowed: false, 
-      permission: null, 
-      message: "You must be signed in" 
+    return {
+      allowed: false,
+      permission: null,
+      message: "You must be signed in"
     };
   }
 
   const permission = await getEffectivePermission(user.id, projectId);
-  
+
   if (!permission) {
-    return { 
-      allowed: false, 
-      permission: null, 
-      message: "You don't have access to this project" 
+    return {
+      allowed: false,
+      permission: null,
+      message: "You don't have access to this project"
     };
   }
 
   if (!hasPermission(permission, "admin")) {
-    return { 
-      allowed: false, 
-      permission, 
-      message: "You need Admin access for this action" 
+    return {
+      allowed: false,
+      permission,
+      message: "You need Admin access for this action"
     };
   }
 

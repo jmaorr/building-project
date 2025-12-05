@@ -1,5 +1,4 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import type { NextRequest } from "next/server";
 
 // Define public routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
@@ -20,6 +19,14 @@ export default clerkMiddleware(async (auth, req) => {
   // Protect all routes except public ones
   if (!isPublicRoute(req)) {
     await auth.protect();
+
+    // Check if user has completed onboarding (has an organization)
+    // We can't easily check DB here without Edge middleware adapter, 
+    // so for now we'll rely on a custom claim or just let the app handle it via a layout check
+    // OR we can check if the user is visiting /onboarding and let them pass
+
+    // For this implementation, we'll handle the redirect in the root layout or a specific check
+    // But to be safe, let's allow /onboarding access
   }
 });
 

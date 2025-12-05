@@ -10,7 +10,7 @@ export async function getR2Bucket(): Promise<R2Bucket | null> {
   // In Cloudflare Workers, the R2 binding is available in the runtime
   // For now, we'll return null and use a fallback
   // TODO: Access R2 from Cloudflare runtime context
-  const r2Binding = (globalThis as any).R2_BUCKET as R2Bucket | undefined;
+  const r2Binding = (globalThis as { R2_BUCKET?: R2Bucket }).R2_BUCKET;
   
   if (!r2Binding) {
     return null;

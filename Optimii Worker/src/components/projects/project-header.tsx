@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, Users, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Settings, Users, ChevronRight, MoreHorizontal, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
+import { ProjectShare } from "./project-share";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,6 +86,12 @@ export function ProjectHeader({ project, phases }: ProjectHeaderProps) {
 
             {/* Desktop actions */}
             <div className="hidden md:flex items-center gap-2">
+              <ProjectShare projectId={project.id}>
+                <Button variant="outline" size="sm">
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </Button>
+              </ProjectShare>
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/projects/${project.id}/contacts`}>
                   <Users className="mr-2 h-4 w-4" />

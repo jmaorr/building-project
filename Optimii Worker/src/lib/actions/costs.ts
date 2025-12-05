@@ -1,10 +1,12 @@
 "use server";
 
-import { eq, and, desc, isNull, or } from "drizzle-orm";
-import { createDb } from "@/lib/db";
+import { eq, desc } from "drizzle-orm";
+import { createDb, type D1Database } from "@/lib/db";
 import { costs, files, phases, stages, projects, users, contacts, generateId } from "@/lib/db/schema";
 import { getD1Database } from "@/lib/cloudflare/get-env";
 import type { Cost, NewCost, File as FileType } from "@/lib/db/schema";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { canEditProject } from "@/lib/auth/permissions";
 
 // Extended type with files
 export type CostWithFiles = Cost & {
@@ -21,17 +23,17 @@ export type CostWithFiles = Cost & {
  */
 export async function getCostsByProject(projectId: string): Promise<CostWithFiles[]> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       return [];
     }
-    
+
     const db = createDb(d1);
     const costsList = await db.select()
       .from(costs)
       .where(eq(costs.projectId, projectId))
       .orderBy(desc(costs.createdAt));
-    
+
     // Get files for each cost
     const costsWithFiles = await Promise.all(
       costsList.map(async (cost) => {
@@ -41,7 +43,7 @@ export async function getCostsByProject(projectId: string): Promise<CostWithFile
         return { ...cost, files: costFiles };
       })
     );
-    
+
     return costsWithFiles;
   } catch (error) {
     console.error("Error fetching costs by project:", error);
@@ -54,17 +56,17 @@ export async function getCostsByProject(projectId: string): Promise<CostWithFile
  */
 export async function getCostsByPhase(phaseId: string): Promise<CostWithFiles[]> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       return [];
     }
-    
+
     const db = createDb(d1);
     const costsList = await db.select()
       .from(costs)
       .where(eq(costs.phaseId, phaseId))
       .orderBy(desc(costs.createdAt));
-    
+
     // Get files for each cost
     const costsWithFiles = await Promise.all(
       costsList.map(async (cost) => {
@@ -74,7 +76,7 @@ export async function getCostsByPhase(phaseId: string): Promise<CostWithFiles[]>
         return { ...cost, files: costFiles };
       })
     );
-    
+
     return costsWithFiles;
   } catch (error) {
     console.error("Error fetching costs by phase:", error);
@@ -87,17 +89,17 @@ export async function getCostsByPhase(phaseId: string): Promise<CostWithFiles[]>
  */
 export async function getCostsByStage(stageId: string): Promise<CostWithFiles[]> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       return [];
     }
-    
+
     const db = createDb(d1);
     const costsList = await db.select()
       .from(costs)
       .where(eq(costs.stageId, stageId))
       .orderBy(desc(costs.createdAt));
-    
+
     // Get files for each cost
     const costsWithFiles = await Promise.all(
       costsList.map(async (cost) => {
@@ -107,7 +109,7 @@ export async function getCostsByStage(stageId: string): Promise<CostWithFiles[]>
         return { ...cost, files: costFiles };
       })
     );
-    
+
     return costsWithFiles;
   } catch (error) {
     console.error("Error fetching costs by stage:", error);
@@ -120,21 +122,21 @@ export async function getCostsByStage(stageId: string): Promise<CostWithFiles[]>
  */
 export async function getCost(id: string): Promise<CostWithFiles | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return null;
-    
+
     const db = createDb(d1);
     const results = await db.select()
       .from(costs)
       .where(eq(costs.id, id));
-    
+
     if (results.length === 0) return null;
-    
+
     const cost = results[0];
     const costFiles = await db.select()
       .from(files)
       .where(eq(files.costId, cost.id));
-    
+
     return { ...cost, files: costFiles };
   } catch (error) {
     console.error("Error fetching cost:", error);
@@ -179,29 +181,36 @@ export async function createCost(data: {
   createdBy?: string;
 }): Promise<Cost> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       const error = "D1 database not available";
       console.error(error);
       throw new Error(error);
     }
-    
+
+    const user = await getCurrentUser();
+    if (!user) throw new Error("You must be signed in to create costs");
+
+    if (!await canEditProject(data.projectId)) {
+      throw new Error("Unauthorized: You do not have permission to create costs");
+    }
+
     const db = createDb(d1);
     const now = new Date();
-    
+
     // Validate required fields
     if (!data.projectId) {
       const error = "Missing required field: projectId";
       console.error(error);
       throw new Error(error);
     }
-    
+
     if (!data.name || !data.name.trim()) {
       const error = "Missing required field: name";
       console.error(error);
       throw new Error(error);
     }
-    
+
     // Validate that project, phase, and stage exist before attempting insert
     // This provides better error messages than database constraints
     console.log("Validating references before insert...");
@@ -212,7 +221,7 @@ export async function createCost(data: {
       console.error(error);
       throw new Error(error);
     }
-    
+
     if (data.phaseId) {
       const phaseCheck = await db.select().from(phases).where(eq(phases.id, data.phaseId)).get();
       console.log("Phase check result:", phaseCheck ? `Found: ${phaseCheck.name}` : "NOT FOUND");
@@ -222,7 +231,7 @@ export async function createCost(data: {
         throw new Error(error);
       }
     }
-    
+
     if (data.stageId) {
       const stageCheck = await db.select().from(stages).where(eq(stages.id, data.stageId)).get();
       console.log("Stage check result:", stageCheck ? `Found: ${stageCheck.name}` : "NOT FOUND");
@@ -244,7 +253,7 @@ export async function createCost(data: {
         createdByUserId = null;
       }
     }
-    
+
     // Validate vendorContactId if provided
     let vendorContactIdValue: string | null = null;
     if (data.vendorContactId) {
@@ -257,11 +266,11 @@ export async function createCost(data: {
         vendorContactIdValue = null;
       }
     }
-    
+
     console.log("All references validated successfully");
-    
+
     const costId = generateId();
-    
+
     const newCost: NewCost = {
       id: costId,
       projectId: data.projectId,
@@ -283,7 +292,7 @@ export async function createCost(data: {
       createdAt: now,
       updatedAt: now,
     };
-    
+
     // Insert the cost
     try {
       console.log("Attempting to insert cost with data:", {
@@ -297,7 +306,7 @@ export async function createCost(data: {
         createdAt: newCost.createdAt,
         updatedAt: newCost.updatedAt,
       });
-      
+
       const insertResult = await db.insert(costs).values(newCost);
       console.log("Insert result:", insertResult);
       console.log("Cost inserted successfully, ID:", costId);
@@ -306,73 +315,75 @@ export async function createCost(data: {
       console.error("Failed to insert cost:", insertError);
       console.error("Error type:", typeof insertError);
       console.error("Error constructor:", insertError?.constructor?.name);
-      
+
       // Try to extract all error information
-      let errorDetails: any = {};
+      let errorDetails: Record<string, unknown> = {};
       if (insertError instanceof Error) {
         errorDetails = {
           name: insertError.name,
           message: insertError.message,
           stack: insertError.stack,
-          cause: (insertError as any).cause,
+          cause: (insertError as { cause?: unknown }).cause,
         };
         // Try to get additional properties
         Object.keys(insertError).forEach(key => {
-          errorDetails[key] = (insertError as any)[key];
+          errorDetails[key] = (insertError as unknown as Record<string, unknown>)[key];
         });
       } else {
         errorDetails = { raw: String(insertError) };
       }
-      
+
       console.error("Full error details:", JSON.stringify(errorDetails, null, 2));
-      
+
       // Try to get the actual SQLite error code/message
       // Drizzle errors might wrap the actual D1 error
-      let actualError = insertError;
-      if ((insertError as any).cause) {
-        console.error("Error has cause property:", (insertError as any).cause);
-        actualError = (insertError as any).cause;
+      let actualError: unknown = insertError;
+      const errorWithCause = insertError as { cause?: unknown };
+      const errorWithError = insertError as { error?: unknown };
+      if (errorWithCause.cause) {
+        console.error("Error has cause property:", errorWithCause.cause);
+        actualError = errorWithCause.cause;
       }
-      if ((insertError as any).error) {
-        console.error("Error has error property:", (insertError as any).error);
-        actualError = (insertError as any).error;
+      if (errorWithError.error) {
+        console.error("Error has error property:", errorWithError.error);
+        actualError = errorWithError.error;
       }
-      
+
       // Log the actual error message we'll use
       const actualErrorMessage = actualError instanceof Error ? actualError.message : String(actualError);
       console.error("Actual error message to check:", actualErrorMessage);
-      
+
       let errorMessage = "Failed to create cost";
-      
+
       if (insertError instanceof Error) {
         // Check for common constraint violations
         const errorMsg = actualErrorMessage.toLowerCase();
         const fullErrorText = JSON.stringify(errorDetails).toLowerCase();
         const combinedErrorText = errorMsg + " " + fullErrorText;
-        
+
         if (combinedErrorText.includes("foreign key") || combinedErrorText.includes("constraint failed") || combinedErrorText.includes("sqlite_error")) {
           console.error("Foreign key constraint failed. This usually means:");
           console.error("- The project, phase, or stage doesn't exist in the database");
           console.error("- Project ID:", data.projectId);
           console.error("- Phase ID:", data.phaseId || "none");
           console.error("- Stage ID:", data.stageId || "none");
-          
+
           // Try to check what exists
           let projectExists = false;
           let phaseExists = false;
           let stageExists = false;
-          
+
           try {
             const projectCheck = await db.select().from(projects).where(eq(projects.id, data.projectId)).get();
             projectExists = !!projectCheck;
             console.error("- Project exists in DB:", projectExists);
-            
+
             if (data.phaseId) {
               const phaseCheck = await db.select().from(phases).where(eq(phases.id, data.phaseId)).get();
               phaseExists = !!phaseCheck;
               console.error("- Phase exists in DB:", phaseExists);
             }
-            
+
             if (data.stageId) {
               const stageCheck = await db.select().from(stages).where(eq(stages.id, data.stageId)).get();
               stageExists = !!stageCheck;
@@ -381,13 +392,13 @@ export async function createCost(data: {
           } catch (checkError) {
             console.error("Could not verify references:", checkError);
           }
-          
+
           // Build descriptive error message
           const missingRefs: string[] = [];
           if (!projectExists) missingRefs.push(`Project ${data.projectId}`);
           if (data.phaseId && !phaseExists) missingRefs.push(`Phase ${data.phaseId}`);
           if (data.stageId && !stageExists) missingRefs.push(`Stage ${data.stageId}`);
-          
+
           if (missingRefs.length > 0) {
             errorMessage = `Cannot create cost: ${missingRefs.join(", ")} does not exist in the database.`;
           } else {
@@ -407,18 +418,18 @@ export async function createCost(data: {
       } else {
         errorMessage = `Cannot create cost: ${String(insertError)}`;
       }
-      
+
       // Log the full error details before throwing
       console.error("Throwing error with message:", errorMessage);
       console.error("Original error was:", insertError);
-      
+
       throw new Error(errorMessage);
     }
-    
+
     // Fetch the created cost
     try {
       const result = await db.select().from(costs).where(eq(costs.id, costId)).get();
-      
+
       if (!result) {
         console.error("Cost inserted but could not be retrieved. Cost ID:", costId);
         // Try to find it with a different query
@@ -426,7 +437,7 @@ export async function createCost(data: {
         console.error("Recent costs in DB:", allCosts);
         throw new Error("Cost was created but could not be retrieved. Please refresh the page to see the new cost.");
       }
-      
+
       console.log("Cost created and retrieved successfully:", result.id);
       return result;
     } catch (fetchError) {
@@ -456,20 +467,24 @@ export async function updateCost(
   data: Partial<Pick<Cost, "name" | "description" | "category" | "quotedAmount" | "actualAmount" | "vendorContactId" | "vendorName" | "notes">>
 ): Promise<Cost> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) {
       throw new Error("D1 database not available");
     }
-    
+
     const db = createDb(d1);
     const now = new Date();
-    
+
     // Check if cost exists
     const existingCost = await db.select().from(costs).where(eq(costs.id, id)).get();
     if (!existingCost) {
       throw new Error(`Cost with ID ${id} does not exist`);
     }
-    
+
+    if (!await canEditProject(existingCost.projectId)) {
+      throw new Error("Unauthorized: You do not have permission to update costs");
+    }
+
     // Validate vendorContactId if provided
     if (data.vendorContactId) {
       const contactCheck = await db.select().from(contacts).where(eq(contacts.id, data.vendorContactId)).get();
@@ -478,7 +493,7 @@ export async function updateCost(
         data.vendorContactId = undefined;
       }
     }
-    
+
     const result = await db.update(costs)
       .set({
         ...data,
@@ -487,11 +502,11 @@ export async function updateCost(
       .where(eq(costs.id, id))
       .returning()
       .get();
-    
+
     if (!result) {
       throw new Error("Cost was updated but could not be retrieved");
     }
-    
+
     return result;
   } catch (error) {
     console.error("Error updating cost:", error);
@@ -507,14 +522,21 @@ export async function updateCost(
  */
 export async function deleteCost(id: string): Promise<boolean> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return false;
-    
+
     const db = createDb(d1);
-    
+
+    const cost = await db.select().from(costs).where(eq(costs.id, id)).get();
+    if (!cost) return false;
+
+    if (!await canEditProject(cost.projectId)) {
+      return false;
+    }
+
     // Files with this cost_id will be unlinked due to ON DELETE CASCADE
     await db.delete(costs).where(eq(costs.id, id));
-    
+
     return true;
   } catch (error) {
     console.error("Error deleting cost:", error);
@@ -535,33 +557,33 @@ export async function updatePaymentStatus(
   paidAmount?: number
 ): Promise<Cost | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return null;
-    
+
     const db = createDb(d1);
     const now = new Date();
-    
+
     const updateData: Partial<Cost> = {
       paymentStatus: status,
       updatedAt: now,
     };
-    
+
     if (paidAmount !== undefined) {
       updateData.paidAmount = paidAmount;
     }
-    
+
     // Set paidAt timestamp if marking as paid
     if (status === "paid") {
       updateData.paidAt = now;
     }
-    
+
     const result = await db.update(costs)
       .set(updateData)
       .where(eq(costs.id, id))
       .returning();
-    
+
     if (result.length === 0) return null;
-    
+
     return result[0];
   } catch (error) {
     console.error("Error updating payment status:", error);
@@ -591,19 +613,19 @@ export async function markAsPaid(
   paymentMethod: "external" | "platform" = "external"
 ): Promise<Cost | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return null;
-    
+
     const db = createDb(d1);
     const now = new Date();
-    
+
     // Get the current cost to set paidAmount
     const existing = await getCost(id);
     if (!existing) return null;
-    
+
     // Use actualAmount if set, otherwise quotedAmount
     const totalAmount = existing.actualAmount ?? existing.quotedAmount ?? 0;
-    
+
     const result = await db.update(costs)
       .set({
         paymentStatus: "paid",
@@ -614,9 +636,9 @@ export async function markAsPaid(
       })
       .where(eq(costs.id, id))
       .returning();
-    
+
     if (result.length === 0) return null;
-    
+
     return result[0];
   } catch (error) {
     console.error("Error marking as paid:", error);
@@ -633,25 +655,25 @@ export async function recordPartialPayment(
   paymentMethod: "external" | "platform" = "external"
 ): Promise<Cost | null> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return null;
-    
+
     const db = createDb(d1);
     const now = new Date();
-    
+
     // Get current cost
     const existing = await getCost(id);
     if (!existing) return null;
-    
+
     const newPaidAmount = (existing.paidAmount ?? 0) + amountPaid;
     const totalAmount = existing.actualAmount ?? existing.quotedAmount ?? 0;
-    
+
     // Determine status based on payment amount
     let newStatus: Cost["paymentStatus"] = "partially_paid";
     if (newPaidAmount >= totalAmount) {
       newStatus = "paid";
     }
-    
+
     const result = await db.update(costs)
       .set({
         paymentStatus: newStatus,
@@ -662,9 +684,9 @@ export async function recordPartialPayment(
       })
       .where(eq(costs.id, id))
       .returning();
-    
+
     if (result.length === 0) return null;
-    
+
     return result[0];
   } catch (error) {
     console.error("Error recording partial payment:", error);
@@ -681,9 +703,9 @@ export async function recordPartialPayment(
  */
 export async function getCostFiles(costId: string): Promise<FileType[]> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return [];
-    
+
     const db = createDb(d1);
     return await db.select()
       .from(files)
@@ -702,15 +724,15 @@ export async function attachFileToCost(
   costId: string
 ): Promise<boolean> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return false;
-    
+
     const db = createDb(d1);
-    
+
     await db.update(files)
       .set({ costId })
       .where(eq(files.id, fileId));
-    
+
     return true;
   } catch (error) {
     console.error("Error attaching file to cost:", error);
@@ -723,15 +745,15 @@ export async function attachFileToCost(
  */
 export async function detachFileFromCost(fileId: string): Promise<boolean> {
   try {
-    const d1 = await getD1Database();
+    const d1 = getD1Database() as D1Database | null;
     if (!d1) return false;
-    
+
     const db = createDb(d1);
-    
+
     await db.update(files)
       .set({ costId: null })
       .where(eq(files.id, fileId));
-    
+
     return true;
   } catch (error) {
     console.error("Error detaching file from cost:", error);
@@ -754,15 +776,15 @@ export async function getPhaseCostSummary(phaseId: string): Promise<{
   count: number;
 }> {
   const phaseCosts = await getCostsByPhase(phaseId);
-  
+
   const totalQuoted = phaseCosts.reduce((sum, c) => sum + (c.quotedAmount ?? 0), 0);
   const totalActual = phaseCosts.reduce((sum, c) => sum + (c.actualAmount ?? 0), 0);
   const totalPaid = phaseCosts.reduce((sum, c) => sum + (c.paidAmount ?? 0), 0);
-  
+
   // Outstanding is based on actual if available, otherwise quoted
   const totalDue = phaseCosts.reduce((sum, c) => sum + (c.actualAmount ?? c.quotedAmount ?? 0), 0);
   const outstanding = totalDue - totalPaid;
-  
+
   return {
     totalQuoted,
     totalActual,
@@ -783,14 +805,14 @@ export async function getProjectCostSummary(projectId: string): Promise<{
   count: number;
 }> {
   const projectCosts = await getCostsByProject(projectId);
-  
+
   const totalQuoted = projectCosts.reduce((sum, c) => sum + (c.quotedAmount ?? 0), 0);
   const totalActual = projectCosts.reduce((sum, c) => sum + (c.actualAmount ?? 0), 0);
   const totalPaid = projectCosts.reduce((sum, c) => sum + (c.paidAmount ?? 0), 0);
-  
+
   const totalDue = projectCosts.reduce((sum, c) => sum + (c.actualAmount ?? c.quotedAmount ?? 0), 0);
   const outstanding = totalDue - totalPaid;
-  
+
   return {
     totalQuoted,
     totalActual,

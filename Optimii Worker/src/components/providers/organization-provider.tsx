@@ -107,7 +107,7 @@ export function OrganizationProvider({ children, organization }: OrganizationPro
 
       // If Clerk is available, reflect the change in the Clerk org context too.
       if (orgListLoaded && org.id) {
-        setActive(org.id).catch((error) => {
+        setActive({ organization: org.id }).catch((error) => {
           console.error("Failed to set active organization in Clerk", error);
         });
       }

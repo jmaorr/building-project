@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getProject, getProjectPhases, getPhase } from "@/lib/actions/projects";
+import { getProject, getPhase } from "@/lib/actions/projects";
 import { createPhaseSlug } from "@/lib/utils/slug";
 
 interface PhasePageProps {

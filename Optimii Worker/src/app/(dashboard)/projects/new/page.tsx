@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Building2, FileText, Check, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Check, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/select";
 import { createProject } from "@/lib/actions/projects";
 import { getOrgTemplates, getTemplate } from "@/lib/actions/templates";
-import type { ProjectTemplate, TemplatePhase, TemplateModule } from "@/lib/db/schema";
-import { defaultModuleTypes } from "@/lib/db/seed";
+import type { ProjectTemplate, TemplatePhase, TemplateStage } from "@/lib/db/schema";
+import { defaultStageTypes } from "@/lib/db/seed";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/providers";
 
@@ -28,14 +28,14 @@ export default function NewProjectPage() {
   const [step, setStep] = useState<"template" | "details">("template");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { id: orgId } = useOrganization();
-  
+
   // Template state
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [templatePreview, setTemplatePreview] = useState<{
     template: ProjectTemplate;
-    phases: (TemplatePhase & { modules: (TemplateModule & { moduleType: typeof defaultModuleTypes[number] })[] })[];
+    phases: (TemplatePhase & { modules: (TemplateStage & { moduleType: typeof defaultStageTypes[number] })[] })[];
   } | null>(null);
   const [expandedPreview, setExpandedPreview] = useState(false);
 
@@ -45,7 +45,7 @@ export default function NewProjectPage() {
       try {
         const orgTemplates = await getOrgTemplates(orgId);
         setTemplates(orgTemplates);
-        
+
         // Pre-select the default template
         const defaultTemplate = orgTemplates.find(t => t.isDefault);
         if (defaultTemplate) {
@@ -84,10 +84,10 @@ export default function NewProjectPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       const formData = new FormData(e.currentTarget);
-      
+
       const project = await createProject({
         orgId,
         templateId: selectedTemplateId || undefined,
@@ -98,13 +98,13 @@ export default function NewProjectPage() {
         buildingType: formData.get("buildingType") as string || undefined,
         councilArea: formData.get("councilArea") as string || undefined,
         budget: formData.get("budget") ? parseFloat(formData.get("budget") as string) : undefined,
-        targetCompletion: formData.get("targetCompletion") 
-          ? new Date(formData.get("targetCompletion") as string) 
+        targetCompletion: formData.get("targetCompletion")
+          ? new Date(formData.get("targetCompletion") as string)
           : undefined,
       });
-      
+
       console.log("Project created:", project);
-      
+
       if (project) {
         router.push(`/projects/${project.id}`);
       } else {
@@ -129,8 +129,8 @@ export default function NewProjectPage() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <PageHeader 
-            title="New Project" 
+          <PageHeader
+            title="New Project"
             description="Choose a template to get started"
           />
         </div>
@@ -263,8 +263,8 @@ export default function NewProjectPage() {
               <Button type="button" variant="outline" asChild>
                 <Link href="/projects">Cancel</Link>
               </Button>
-              <Button 
-                onClick={handleContinue} 
+              <Button
+                onClick={handleContinue}
                 disabled={!selectedTemplateId}
               >
                 Continue
@@ -302,9 +302,9 @@ export default function NewProjectPage() {
                     {templatePreview.phases.reduce((acc, p) => acc + p.modules.length, 0)} stages
                   </p>
                 </div>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
+                <Button
+                  type="button"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setStep("template")}
                 >

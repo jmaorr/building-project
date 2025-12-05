@@ -20,6 +20,7 @@ interface ProjectCardProps {
   progress?: number;
   currentPhase?: string;
   onDelete?: (id: string) => void;
+  isDeleting?: boolean;
 }
 
 const statusConfig = {
@@ -30,7 +31,7 @@ const statusConfig = {
   archived: { label: "Archived", className: "bg-gray-500/10 text-gray-500 dark:text-gray-500" },
 };
 
-export function ProjectCard({ project, progress = 0, currentPhase, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, progress = 0, currentPhase, onDelete, isDeleting = false }: ProjectCardProps) {
   const status = statusConfig[project.status] || statusConfig.draft;
   
   const formatCurrency = (amount: number | null) => {
@@ -81,6 +82,7 @@ export function ProjectCard({ project, progress = 0, currentPhase, onDelete }: P
                   variant="ghost" 
                   size="icon" 
                   className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  disabled={isDeleting}
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
@@ -92,13 +94,18 @@ export function ProjectCard({ project, progress = 0, currentPhase, onDelete }: P
                 <DropdownMenuItem asChild>
                   <Link href={`/projects/${project.id}/settings`}>Settings</Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="text-destructive"
-                  onClick={() => onDelete?.(project.id)}
-                >
-                  Delete
-                </DropdownMenuItem>
+                {onDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="text-destructive"
+                      disabled={isDeleting}
+                      onClick={() => !isDeleting && onDelete?.(project.id)}
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -143,7 +150,5 @@ export function ProjectCard({ project, progress = 0, currentPhase, onDelete }: P
     </Card>
   );
 }
-
-
 
 

@@ -1,7 +1,7 @@
 "use server";
 
-import { eq, and, desc } from "drizzle-orm";
-import { files, generateId, type File, type NewFile } from "@/lib/db/schema";
+import { eq, and, desc, or } from "drizzle-orm";
+import { files, stages, generateId, type File, type NewFile } from "@/lib/db/schema";
 import { getDb } from "@/lib/db/get-db";
 import type { R2Bucket } from "@/lib/storage/r2-types";
 
@@ -29,6 +29,41 @@ export async function getFilesByStage(
     .select()
     .from(files)
     .where(and(...conditions))
+    .orderBy(desc(files.createdAt))
+    .all();
+  
+  return result;
+}
+
+/**
+ * Get all files from all stages in a phase
+ */
+export async function getFilesByPhase(phaseId: string): Promise<File[]> {
+  const db = await getDb();
+  if (!db) {
+    console.error("Database not available.");
+    return [];
+  }
+
+  // Get all stages in the phase first
+  const phaseStages = await db
+    .select({ id: stages.id })
+    .from(stages)
+    .where(eq(stages.phaseId, phaseId))
+    .all();
+
+  if (phaseStages.length === 0) {
+    return [];
+  }
+
+  const stageIds = phaseStages.map(s => s.id);
+  
+  // Get all files from these stages (using OR conditions)
+  const stageConditions = stageIds.map(id => eq(files.stageId, id));
+  const result = await db
+    .select()
+    .from(files)
+    .where(or(...stageConditions))
     .orderBy(desc(files.createdAt))
     .all();
   
@@ -139,7 +174,7 @@ async function getR2Bucket(): Promise<R2Bucket | null> {
   // In Cloudflare Workers, R2 is available via env.R2_BUCKET
   // For Next.js server actions, we need to access it differently
   // This will be available in the Cloudflare runtime context
-  const r2Binding = (globalThis as any).R2_BUCKET as R2Bucket | undefined;
+  const r2Binding = (globalThis as { R2_BUCKET?: R2Bucket }).R2_BUCKET;
   return r2Binding || null;
 }
 

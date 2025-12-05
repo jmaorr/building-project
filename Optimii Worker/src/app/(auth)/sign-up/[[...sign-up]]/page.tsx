@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { SignUp, useAuth } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 import { Building2, Hammer, PenTool, ClipboardCheck, Check } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type UserType = "owner" | "builder" | "architect" | "certifier";
@@ -157,9 +158,9 @@ export default function SignUpPage() {
 
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <a href="/sign-in" className="text-brand hover:text-brand/80">
+        <Link href="/sign-in" className="text-brand hover:text-brand/80">
           Sign in
-        </a>
+        </Link>
       </p>
     </div>
   );
