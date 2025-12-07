@@ -23,7 +23,7 @@ export type CostWithFiles = Cost & {
  */
 export async function getCostsByProject(projectId: string): Promise<CostWithFiles[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       return [];
     }
@@ -56,7 +56,7 @@ export async function getCostsByProject(projectId: string): Promise<CostWithFile
  */
 export async function getCostsByPhase(phaseId: string): Promise<CostWithFiles[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       return [];
     }
@@ -89,7 +89,7 @@ export async function getCostsByPhase(phaseId: string): Promise<CostWithFiles[]>
  */
 export async function getCostsByStage(stageId: string): Promise<CostWithFiles[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       return [];
     }
@@ -122,7 +122,7 @@ export async function getCostsByStage(stageId: string): Promise<CostWithFiles[]>
  */
 export async function getCost(id: string): Promise<CostWithFiles | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -181,7 +181,7 @@ export async function createCost(data: {
   createdBy?: string;
 }): Promise<Cost> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       const error = "D1 database not available";
       console.error(error);
@@ -467,7 +467,7 @@ export async function updateCost(
   data: Partial<Pick<Cost, "name" | "description" | "category" | "quotedAmount" | "actualAmount" | "vendorContactId" | "vendorName" | "notes">>
 ): Promise<Cost> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       throw new Error("D1 database not available");
     }
@@ -522,7 +522,7 @@ export async function updateCost(
  */
 export async function deleteCost(id: string): Promise<boolean> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return false;
 
     const db = createDb(d1);
@@ -557,7 +557,7 @@ export async function updatePaymentStatus(
   paidAmount?: number
 ): Promise<Cost | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -613,7 +613,7 @@ export async function markAsPaid(
   paymentMethod: "external" | "platform" = "external"
 ): Promise<Cost | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -655,7 +655,7 @@ export async function recordPartialPayment(
   paymentMethod: "external" | "platform" = "external"
 ): Promise<Cost | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -703,7 +703,7 @@ export async function recordPartialPayment(
  */
 export async function getCostFiles(costId: string): Promise<FileType[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);
@@ -724,7 +724,7 @@ export async function attachFileToCost(
   costId: string
 ): Promise<boolean> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return false;
 
     const db = createDb(d1);
@@ -745,7 +745,7 @@ export async function attachFileToCost(
  */
 export async function detachFileFromCost(fileId: string): Promise<boolean> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return false;
 
     const db = createDb(d1);

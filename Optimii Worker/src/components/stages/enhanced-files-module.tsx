@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, CheckCircle2, XCircle, Clock, X, User, MessageSquare, AlertCircle } from "lucide-react";
+import { Upload, CheckCircle2, XCircle, Clock, X, User, MessageSquare, AlertCircle, Plus, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -26,10 +26,11 @@ import { Label } from "@/components/ui/label";
 import { RoundsSelector } from "@/components/stages/rounds-selector";
 import { CommentsSection } from "@/components/stages/comments-section";
 import { FilePreview, FilesDisplay } from "@/components/files";
-import { CostSection } from "@/components/costs";
+import { CostSection, CostsTable, AddCostDialog } from "@/components/costs";
 import type { Stage, User as UserType, Contact, File as FileType, Note } from "@/lib/db/schema";
 import { getFilesByStage, deleteFile } from "@/lib/actions/files";
 import { getCommentsByStage } from "@/lib/actions/comments";
+import { getCostsByStage, type CostWithFiles } from "@/lib/actions/costs";
 import { getApprovalsByStage, requestApproval, approveApproval, rejectApproval, type ApprovalWithAssignee } from "@/lib/actions/approvals";
 import { updateStageStatus, startNewRound } from "@/lib/actions/projects";
 import { getProjectContacts } from "@/lib/actions/contacts";
@@ -48,6 +49,7 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   const [stageStatus, setStageStatus] = useState(stage.status);
   const [files, setFiles] = useState<FileType[]>([]);
   const [comments, setComments] = useState<(Note & { author: UserType | Contact })[]>([]);
+  const [costs, setCosts] = useState<CostWithFiles[]>([]);
   const [approvals, setApprovals] = useState<ApprovalWithAssignee[]>([]);
   const [availableUsers, setAvailableUsers] = useState<Contact[]>([]);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -59,6 +61,8 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewFile, setPreviewFile] = useState<FileType | null>(null);
   const [statusChangeMessage, setStatusChangeMessage] = useState<string | null>(null);
+  const [isAddCostDialogOpen, setIsAddCostDialogOpen] = useState(false);
+  const [isCreatingRound, setIsCreatingRound] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user: clerkUser } = useUser();
 
@@ -103,20 +107,23 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
 
   const loadData = useCallback(async () => {
     try {
-      const [filesData, commentsData, approvalsData] = await Promise.all([
+      const [filesData, commentsData, approvalsData, costsData] = await Promise.all([
         getFilesByStage(stage.id, currentRound),
         getCommentsByStage(stage.id, currentRound),
         getApprovalsByStage(stage.id, currentRound),
+        getCostsByStage(stage.id),
       ]);
       // Ensure we always have arrays
       setFiles(Array.isArray(filesData) ? filesData : []);
       setComments(Array.isArray(commentsData) ? commentsData : []);
       setApprovals(Array.isArray(approvalsData) ? approvalsData : []);
+      setCosts(Array.isArray(costsData) ? costsData : []);
     } catch (error) {
       console.error("Failed to load data:", error);
       setFiles([]);
       setComments([]);
       setApprovals([]);
+      setCosts([]);
     } finally {
     }
   }, [stage.id, currentRound]);
@@ -128,6 +135,27 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   useEffect(() => {
     loadContacts();
   }, [loadContacts]);
+
+  // Initialize currentRound from stage on mount
+  useEffect(() => {
+    if (currentRound === 1 && stage.currentRound > 1) {
+      // On initial load, use stage's currentRound if it's higher
+      setCurrentRound(stage.currentRound);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync currentRound with stage.currentRound only when stage.currentRound decreases (round deletion)
+  useEffect(() => {
+    // Only sync if stage's currentRound decreased (round was deleted)
+    // This prevents resetting when we're just switching tabs or creating new rounds
+    if (stage.currentRound < currentRound) {
+      // If we're on a round that no longer exists, switch to the last available round
+      const newRound = Math.min(currentRound - 1, stage.currentRound);
+      setCurrentRound(newRound);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage.currentRound]);
 
   const handleStatusChange = async (newStatus: Stage["status"]) => {
     try {
@@ -156,11 +184,33 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   };
 
   const handleNewRound = async () => {
-    const updatedStage = await startNewRound(stage.id);
-    if (updatedStage) {
-      setCurrentRound(updatedStage.currentRound);
-      loadData();
+    // Prevent duplicate round creation
+    if (isCreatingRound) {
+      return;
     }
+
+    setIsCreatingRound(true);
+    try {
+      const updatedStage = await startNewRound(stage.id);
+      if (updatedStage) {
+        // Set the new round and switch to it immediately
+        const newRound = updatedStage.currentRound;
+        setCurrentRound(newRound);
+        // Refresh router to get updated stage data
+        router.refresh();
+        // Load data will be triggered by the useEffect when currentRound changes
+      }
+    } catch (error) {
+      console.error("Failed to create new round:", error);
+    } finally {
+      setIsCreatingRound(false);
+    }
+  };
+
+  const handleRoundDeleted = () => {
+    // Refresh the stage data and reload
+    router.refresh();
+    loadData();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -291,7 +341,7 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
       approvalStatus.approval.assignedTo === currentUser.clerkId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Status Change Message */}
       {statusChangeMessage && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
@@ -308,39 +358,49 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
         </div>
       )}
 
-      {/* Status & Actions Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg bg-muted/30 border">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <Select
-            value={stageStatus}
-            onValueChange={(value) => handleStatusChange(value as Stage["status"])}
-          >
-            <SelectTrigger className="w-[180px] h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="not_started">Not Started</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="awaiting_approval">Awaiting Approval</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="on_hold">On Hold</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* Clean Header with Actions */}
+      <div className="flex flex-col gap-3 p-4 rounded-lg border bg-card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-muted-foreground">Status:</span>
+            <Select
+              value={stageStatus}
+              onValueChange={(value) => handleStatusChange(value as Stage["status"])}
+            >
+              <SelectTrigger className="w-[160px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="not_started">Not Started</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="awaiting_approval">Awaiting Approval</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="on_hold">On Hold</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Add Files</span>
+              <span className="sm:hidden">Files</span>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setIsAddCostDialogOpen(true)}>
+              <DollarSign className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Add Cost</span>
+              <span className="sm:hidden">Cost</span>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              // Scroll to comments section
+              document.getElementById("comments-section")?.scrollIntoView({ behavior: "smooth" });
+            }}>
+              <MessageSquare className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">Comment</span>
+              <span className="sm:hidden">Comment</span>
+            </Button>
+          </div>
         </div>
-        <Button size="sm" onClick={() => setIsUploadDialogOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Files
-        </Button>
       </div>
-
-      {/* Rounds Selector */}
-      <RoundsSelector
-        stage={stage}
-        currentRound={currentRound}
-        onRoundChange={setCurrentRound}
-        onNewRound={handleNewRound}
-      />
 
       {/* Approval Section */}
       {stage.requiresApproval && (
@@ -354,7 +414,54 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
         />
       )}
 
-      {/* Files Section */}
+      {/* Costs Section - Outside rounds, always shown */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Costs</h3>
+          <span className="text-xs text-muted-foreground">
+            {costs.length} item{costs.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        {costs.length > 0 ? (
+          <CostsTable
+            costs={costs}
+            projectId={projectId}
+            onCostUpdated={loadData}
+            onCostDeleted={loadData}
+            compact
+          />
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-8">
+              <DollarSign className="h-10 w-10 text-muted-foreground/50 mb-3" />
+              <p className="text-sm font-medium mb-1">No costs added</p>
+              <p className="text-xs text-muted-foreground text-center mb-4">
+                Track quotes, actuals, and payments for this stage
+              </p>
+              <Button size="sm" onClick={() => setIsAddCostDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Cost
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Rounds Selector - Only affects Files and Comments */}
+      {stage.allowsRounds && (
+        <RoundsSelector
+          stage={stage}
+          currentRound={currentRound}
+          onRoundChange={(round) => {
+            setCurrentRound(round);
+            // Data will reload via useEffect when currentRound changes
+          }}
+          onNewRound={handleNewRound}
+          onRoundDeleted={handleRoundDeleted}
+        />
+      )}
+
+      {/* Files Section - Round-specific */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium">
@@ -377,7 +484,11 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
           onFilePreview={(file) => setPreviewFile(file)}
           onFileDelete={handleDeleteFile}
           emptyStateTitle="No files uploaded"
-          emptyStateDescription="Upload files to this stage to get started"
+          emptyStateDescription={
+            stage.allowsRounds 
+              ? `Upload files to Round ${currentRound} to get started`
+              : "Upload files to this stage to get started"
+          }
           emptyStateAction={
             <Button size="sm" onClick={() => setIsUploadDialogOpen(true)}>
               <Upload className="mr-2 h-4 w-4" />
@@ -396,23 +507,29 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
         />
       )}
 
-      {/* Comments Section */}
-      <CommentsSection
-        stageId={stage.id}
-        roundNumber={currentRound}
-        comments={comments}
-        currentUser={currentUser}
-        availableUsers={availableUsers}
-        onCommentAdded={loadData}
-      />
+      {/* Comments Section - Round-specific */}
+      <div id="comments-section">
+        <CommentsSection
+          stageId={stage.id}
+          roundNumber={currentRound}
+          comments={comments}
+          currentUser={currentUser}
+          availableUsers={availableUsers}
+          onCommentAdded={loadData}
+        />
+      </div>
 
-      {/* Costs Section */}
-      <CostSection
-        stage={stage}
+      {/* Add Cost Dialog */}
+      <AddCostDialog
+        open={isAddCostDialogOpen}
+        onOpenChange={setIsAddCostDialogOpen}
         projectId={projectId}
         phaseId={phaseId}
+        defaultStageId={stage.id}
+        stageName={stage.name}
         contacts={availableUsers}
         currentUserId={currentUserId}
+        onCostCreated={loadData}
       />
 
       {/* File Upload Dialog */}

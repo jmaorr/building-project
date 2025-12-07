@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "@/components/providers";
-import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
 import "./globals.css";
 
 const inter = Inter({
@@ -43,14 +42,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // Check if Clerk keys are available
   const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const organization = await getActiveOrganization();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -59,26 +57,12 @@ export default async function RootLayout({
       >
         {clerkPublishableKey ? (
           <ClerkProvider publishableKey={clerkPublishableKey}>
-            <Providers
-              organization={organization}
-              initialBrand={{
-                accentColor: organization.accentColor || undefined,
-                logoUrl: organization.logoUrl || undefined,
-                orgName: organization.name,
-              }}
-            >
+            <Providers>
               {children}
             </Providers>
           </ClerkProvider>
         ) : (
-          <Providers
-            organization={organization}
-            initialBrand={{
-              accentColor: organization.accentColor || undefined,
-              logoUrl: organization.logoUrl || undefined,
-              orgName: organization.name,
-            }}
-          >
+          <Providers>
             {children}
           </Providers>
         )}

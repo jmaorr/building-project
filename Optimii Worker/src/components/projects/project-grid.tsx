@@ -3,13 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteProject } from "@/lib/actions/projects";
-import type { Project } from "@/lib/db/schema";
+import type { Project, PermissionLevel } from "@/lib/db/schema";
 import { ProjectCard } from "./project-card";
 
 type ProjectListItem = {
   project: Project;
   progress?: number;
   currentPhase?: string;
+  accessType?: "owned" | "shared";
+  permission?: PermissionLevel;
 };
 
 interface ProjectGridProps {
@@ -48,12 +50,14 @@ export function ProjectGrid({ items }: ProjectGridProps) {
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {projects.map(({ project, progress = 0, currentPhase }) => (
+      {projects.map(({ project, progress = 0, currentPhase, accessType, permission }) => (
         <ProjectCard
           key={project.id}
           project={project}
           progress={progress}
           currentPhase={currentPhase}
+          accessType={accessType}
+          permission={permission}
           onDelete={handleDelete}
           isDeleting={isPending && pendingId === project.id}
         />

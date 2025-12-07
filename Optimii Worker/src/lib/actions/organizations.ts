@@ -16,17 +16,19 @@ import {
 import { getD1Database } from "@/lib/cloudflare/get-env";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getSystemTemplates, getTemplate } from "@/lib/actions/templates";
-import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
+import { getActiveOrganization, getActiveOrganizationSafe } from "@/lib/organizations/get-active-organization";
+import { sendOrgInviteEmail } from "@/lib/email/send-invite";
 
 /**
  * Create a new organization and copy system templates
+ * Note: userType is optional - users automatically get an org via ensureUserHasOrg
  */
 export async function createOrganization(data: {
     name: string;
-    userType: "owner" | "builder" | "architect" | "certifier";
+    userType?: "owner" | "builder" | "architect" | "certifier"; // Optional - can be set later via tags
 }) {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) throw new Error("Database not available");
 
         const user = await getCurrentUser();
@@ -35,8 +37,8 @@ export async function createOrganization(data: {
         const db = createDb(d1);
         const now = new Date();
 
-        // 1. Update User Type if not set
-        if (!user.userType) {
+        // 1. Update User Type if provided and not already set
+        if (data.userType && !user.userType) {
             await db.update(users)
                 .set({ userType: data.userType, updatedAt: now })
                 .where(eq(users.id, user.id));
@@ -128,13 +130,13 @@ export async function inviteUserToOrg(data: {
     role?: "admin" | "member";
 }): Promise<{ success: boolean; error?: string }> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return { success: false, error: "Database not available" };
 
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "Not authenticated" };
 
-        const activeOrg = await getActiveOrganization();
+        const activeOrg = await getActiveOrganizationSafe();
         if (!activeOrg) return { success: false, error: "No active organization" };
 
         const db = createDb(d1);
@@ -189,8 +191,9 @@ export async function inviteUserToOrg(data: {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7);
 
+        const inviteId = generateId();
         await db.insert(orgInvites).values({
-            id: generateId(),
+            id: inviteId,
             orgId: activeOrg.id,
             email: data.email.toLowerCase(),
             role: data.role || "member",
@@ -199,7 +202,23 @@ export async function inviteUserToOrg(data: {
             expiresAt,
         });
 
-        // TODO: Send invite email
+        // Send invite email
+        const inviterName = user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}`
+            : user.email;
+        
+        try {
+            await sendOrgInviteEmail({
+                to: data.email.toLowerCase(),
+                inviterName,
+                orgName: activeOrg.name,
+                role: data.role || "member",
+                inviteId,
+            });
+        } catch (emailError) {
+            console.error("Failed to send invite email:", emailError);
+            // Don't fail the invite if email fails - invite is still in DB
+        }
 
         revalidatePath("/settings/team");
         return { success: true };
@@ -214,7 +233,7 @@ export async function inviteUserToOrg(data: {
  */
 export async function acceptOrgInvite(inviteId: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return { success: false, error: "Database not available" };
 
         const user = await getCurrentUser();
@@ -273,7 +292,7 @@ export async function acceptOrgInvite(inviteId: string): Promise<{ success: bool
  */
 export async function getPendingOrgInvites(): Promise<{ id: string; orgName: string; role: string; invitedAt: Date }[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
         const user = await getCurrentUser();
@@ -321,10 +340,10 @@ export async function getPendingOrgInvites(): Promise<{ id: string; orgName: str
  */
 export async function getOrgMembers(): Promise<{ id: string; userId: string; name: string; email: string; role: string }[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
-        const activeOrg = await getActiveOrganization();
+        const activeOrg = await getActiveOrganizationSafe();
         if (!activeOrg) return [];
 
         const db = createDb(d1);
@@ -370,10 +389,10 @@ export async function getOrgMembers(): Promise<{ id: string; userId: string; nam
  */
 export async function getOrgPendingInvites(): Promise<{ id: string; email: string; role: string; invitedAt: Date }[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
-        const activeOrg = await getActiveOrganization();
+        const activeOrg = await getActiveOrganizationSafe();
         if (!activeOrg) return [];
 
         const db = createDb(d1);
@@ -402,13 +421,13 @@ export async function getOrgPendingInvites(): Promise<{ id: string; email: strin
  */
 export async function removeOrgMember(memberId: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return { success: false, error: "Database not available" };
 
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "Not authenticated" };
 
-        const activeOrg = await getActiveOrganization();
+        const activeOrg = await getActiveOrganizationSafe();
         if (!activeOrg) return { success: false, error: "No active organization" };
 
         const db = createDb(d1);
@@ -465,13 +484,13 @@ export async function removeOrgMember(memberId: string): Promise<{ success: bool
  */
 export async function cancelOrgInvite(inviteId: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return { success: false, error: "Database not available" };
 
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "Not authenticated" };
 
-        const activeOrg = await getActiveOrganization();
+        const activeOrg = await getActiveOrganizationSafe();
         if (!activeOrg) return { success: false, error: "No active organization" };
 
         const db = createDb(d1);

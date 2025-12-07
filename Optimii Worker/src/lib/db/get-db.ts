@@ -1,46 +1,27 @@
 "use server";
 
 import { createDb, type D1Database } from "./index";
-import { getCloudflareEnv } from "@/lib/cloudflare/get-env";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 /**
  * Get D1 database instance from Cloudflare runtime
- * In Cloudflare Workers, the DB binding is available via the Cloudflare context
+ * Uses the official OpenNext getCloudflareContext method
  */
 export async function getDb() {
   try {
-    // Try using the centralized getCloudflareEnv utility first
-    const env = getCloudflareEnv();
-    const dbBinding = env?.DB as D1Database | undefined;
+    // Use the official OpenNext method to get Cloudflare context
+    const { env } = await getCloudflareContext({ async: true });
     
+    // Cast env to access our custom bindings
+    const dbBinding = (env as Record<string, unknown>)?.DB as D1Database | undefined;
     if (dbBinding) {
       return createDb(dbBinding);
     }
     
-    // Fallback: try direct access via Symbol
-    const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
-    const contextGetter = (globalThis as Record<symbol, unknown>)[cloudflareContextSymbol];
-    const cloudflareContext = typeof contextGetter === "function" 
-      ? contextGetter() 
-      : contextGetter;
-    
-    const fallbackBinding = cloudflareContext?.env?.DB as D1Database | undefined;
-    
-    if (fallbackBinding) {
-      return createDb(fallbackBinding);
-    }
-    
-    // Last resort: try direct global access
-    const directBinding = (globalThis as { DB?: D1Database }).DB;
-    if (directBinding) {
-      return createDb(directBinding);
-    }
-    
-    console.error("Database not available - no bindings found");
+    console.error("Database binding not found in Cloudflare environment");
     return null;
   } catch (error) {
     console.error("Error accessing database:", error);
     return null;
   }
 }
-

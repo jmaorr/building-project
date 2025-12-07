@@ -148,9 +148,10 @@ export function AddContactDialog({ projectId, orgId, onSuccess, children }: AddC
             onSuccess?.();
         } catch (error) {
             console.error("Error adding contact:", error);
+            const errorMessage = error instanceof Error ? error.message : "Failed to add contact.";
             toast({
                 title: "Error",
-                description: "Failed to add contact.",
+                description: errorMessage,
                 variant: "destructive",
             });
         } finally {
@@ -257,16 +258,18 @@ export function AddContactDialog({ projectId, orgId, onSuccess, children }: AddC
                                             <SelectValue placeholder="Choose a contact..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {existingContacts.map((contact) => (
-                                                <SelectItem key={contact.id} value={contact.id}>
-                                                    {contact.name}
-                                                    {contact.company && (
-                                                        <span className="text-muted-foreground ml-2">
-                                                            ({contact.company})
-                                                        </span>
-                                                    )}
-                                                </SelectItem>
-                                            ))}
+                                            {existingContacts
+                                                .filter((contact) => contact.id && typeof contact.id === "string" && contact.id.trim() !== "")
+                                                .map((contact) => (
+                                                    <SelectItem key={contact.id} value={contact.id}>
+                                                        {contact.name || contact.email || "Unnamed Contact"}
+                                                        {contact.company && (
+                                                            <span className="text-muted-foreground ml-2">
+                                                                ({contact.company})
+                                                            </span>
+                                                        )}
+                                                    </SelectItem>
+                                                ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -275,12 +278,12 @@ export function AddContactDialog({ projectId, orgId, onSuccess, children }: AddC
                             {/* Role */}
                             <div className="space-y-2">
                                 <Label>Role</Label>
-                                <Select value={roleId} onValueChange={setRoleId}>
+                                <Select value={roleId || "none"} onValueChange={(v) => setRoleId(v === "none" ? "" : v)}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select a role..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">No role</SelectItem>
+                                        <SelectItem value="none">No role</SelectItem>
                                         {roles.map((role) => (
                                             <SelectItem key={role.id} value={role.id}>
                                                 {role.name}

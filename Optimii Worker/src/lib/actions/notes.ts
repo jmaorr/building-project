@@ -15,7 +15,7 @@ import { canEditProject } from "@/lib/auth/permissions";
 
 export async function getStageNotes(stageId: string): Promise<(Note & { authorName: string; authorAvatarUrl: string | null })[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
         const db = createDb(d1);
@@ -47,7 +47,7 @@ export async function createNote(data: {
     content: string;
     isPinned?: boolean;
 }): Promise<Note> {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) throw new Error("D1 database not available");
 
     const user = await getCurrentUser();
@@ -90,7 +90,7 @@ export async function createNote(data: {
 
 export async function updateNote(id: string, data: Partial<NewNote>): Promise<Note | null> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return null;
 
         const db = createDb(d1);
@@ -128,7 +128,7 @@ export async function updateNote(id: string, data: Partial<NewNote>): Promise<No
 
 export async function deleteNote(id: string): Promise<boolean> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return false;
 
         const db = createDb(d1);

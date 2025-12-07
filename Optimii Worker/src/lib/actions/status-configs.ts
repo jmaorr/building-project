@@ -22,7 +22,7 @@ export async function getStatusConfigs(options: {
   const { entityType = "stage", projectId, orgId } = options;
   
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       // Return default statuses if D1 not available
       return getDefaultStatuses(entityType);
@@ -83,7 +83,7 @@ export async function getStatusConfigs(options: {
  */
 export async function getStatusConfig(id: string): Promise<StatusConfig | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
     
     const db = createDb(d1);
@@ -114,7 +114,7 @@ export async function createStatusConfig(data: {
   triggersApproval?: boolean;
 }): Promise<StatusConfig | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
     
     const db = createDb(d1);
@@ -183,7 +183,7 @@ export async function updateStatusConfig(
   data: Partial<Pick<StatusConfig, "code" | "label" | "color" | "order" | "isDefault" | "isFinal" | "triggersApproval">>
 ): Promise<StatusConfig | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
     
     const db = createDb(d1);
@@ -209,7 +209,7 @@ export async function updateStatusConfig(
  */
 export async function deleteStatusConfig(id: string): Promise<boolean> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return false;
     
     const db = createDb(d1);
@@ -235,7 +235,7 @@ export async function reorderStatusConfigs(
   ids: string[]
 ): Promise<void> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return;
     
     const db = createDb(d1);
@@ -259,7 +259,7 @@ export async function copySystemConfigsToOrg(
   entityType: "stage" | "project" | "phase" = "stage"
 ): Promise<StatusConfig[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
     
     const db = createDb(d1);
@@ -308,7 +308,7 @@ export async function resetOrgConfigsToDefaults(
   entityType: "stage" | "project" | "phase" = "stage"
 ): Promise<void> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return;
     
     const db = createDb(d1);

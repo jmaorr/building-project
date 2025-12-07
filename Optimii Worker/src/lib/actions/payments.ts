@@ -15,7 +15,7 @@ import { canEditProject } from "@/lib/auth/permissions";
 
 export async function getStagePayments(stageId: string): Promise<(Payment & { contactName: string | null })[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
         const db = createDb(d1);
@@ -48,7 +48,7 @@ export async function createPayment(data: {
     invoiceNumber?: string;
     notes?: string;
 }): Promise<Payment> {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) throw new Error("D1 database not available");
 
     const user = await getCurrentUser();
@@ -97,7 +97,7 @@ export async function createPayment(data: {
 
 export async function updatePayment(id: string, data: Partial<NewPayment>): Promise<Payment | null> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return null;
 
         const db = createDb(d1);
@@ -135,7 +135,7 @@ export async function updatePayment(id: string, data: Partial<NewPayment>): Prom
 
 export async function deletePayment(id: string): Promise<boolean> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return false;
 
         const db = createDb(d1);

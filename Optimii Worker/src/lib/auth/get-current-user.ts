@@ -1,69 +1,81 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import type { User, UserType } from "@/lib/db/schema";
-
-// Development mock user for when auth is bypassed
-const DEV_MOCK_USER: User = {
-  id: "dev-user-1",
-  clerkId: "dev-user-1",
-  email: "dev@example.com",
-  firstName: "Dev",
-  lastName: "User",
-  avatarUrl: null,
-  userType: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+import { eq } from "drizzle-orm";
+import { getDb } from "@/lib/db/get-db";
+import { users } from "@/lib/db/schema";
+import type { User } from "@/lib/db/schema";
 
 /**
- * Get the current authenticated user
- * Returns a mock user in development if not authenticated
+ * Get the current authenticated user from the database
+ * Queries by Clerk ID and returns the actual database user record
+ * Returns null if not authenticated or user not found
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const { userId } = await auth();
+    // 1. Check Clerk authentication
+    const { userId: clerkId } = await auth();
     
-    if (!userId) {
-      // In development, return a mock user when auth is bypassed
-      if (process.env.NODE_ENV === "development") {
-        return DEV_MOCK_USER;
-      }
+    if (!clerkId) {
+      console.log("getCurrentUser: No authenticated Clerk user");
       return null;
     }
 
-    const clerkUser = await currentUser();
-    
-    if (!clerkUser) {
-      // In development, return a mock user
-      if (process.env.NODE_ENV === "development") {
-        return DEV_MOCK_USER;
-      }
+    // 2. Get database connection
+    const db = await getDb();
+    if (!db) {
+      console.error("getCurrentUser: Database not available");
       return null;
     }
 
-    // Get userType from Clerk metadata if available
-    const userType = (clerkUser.unsafeMetadata?.userType as UserType) || null;
+    // 3. Query for user by Clerk ID
+    const dbUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkId))
+      .get();
 
-    // TODO: Look up user in database by clerkId
-    // For now, return a mock user based on Clerk data
-    return {
-      id: userId,
-      clerkId: userId,
-      email: clerkUser.emailAddresses[0]?.emailAddress || "",
-      firstName: clerkUser.firstName || null,
-      lastName: clerkUser.lastName || null,
-      avatarUrl: clerkUser.imageUrl || null,
-      userType,
-      createdAt: new Date(clerkUser.createdAt),
-      updatedAt: new Date(),
-    };
+    if (!dbUser) {
+      console.log("getCurrentUser: User not found in database for clerkId:", clerkId);
+      console.log("  This is normal on first login - user will be created by ensureUserHasOrg");
+      return null;
+    }
+
+    console.log("getCurrentUser: Found user:", dbUser.id);
+    return dbUser;
   } catch (error) {
-    console.error("Error getting current user:", error);
-    // In development, return a mock user even on error
-    if (process.env.NODE_ENV === "development") {
-      return DEV_MOCK_USER;
+    console.error("getCurrentUser: Error fetching user:", error);
+    return null;
+  }
+}
+
+/**
+ * Get the current user's Clerk ID without database lookup
+ * Useful for cases where you just need the auth identity
+ */
+export async function getCurrentClerkId(): Promise<string | null> {
+  try {
+    const { userId } = await auth();
+    return userId;
+  } catch (error) {
+    console.error("getCurrentClerkId: Error getting Clerk ID:", error);
+    return null;
+  }
+}
+
+/**
+ * Get the current Clerk user data (from Clerk, not our DB)
+ * Useful for getting fresh profile data from Clerk
+ */
+export async function getCurrentClerkUser() {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return null;
     }
+    return await currentUser();
+  } catch (error) {
+    console.error("getCurrentClerkUser: Error fetching Clerk user:", error);
     return null;
   }
 }

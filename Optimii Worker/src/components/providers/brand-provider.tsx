@@ -34,14 +34,11 @@ interface BrandProviderProps {
 }
 
 export function BrandProvider({ children, initialBrand }: BrandProviderProps) {
-  const organization = useOrganization();
+  const { organization } = useOrganization();
 
   const [brand, setBrandState] = React.useState<BrandConfig>({
     ...defaultBrand,
     ...initialBrand,
-    accentColor: initialBrand?.accentColor || organization.accentColor || defaultBrand.accentColor,
-    logoUrl: initialBrand?.logoUrl || organization.logoUrl || undefined,
-    orgName: initialBrand?.orgName || organization.name || defaultBrand.orgName,
   });
 
   const setBrand = React.useCallback((updates: Partial<BrandConfig>) => {
@@ -54,15 +51,17 @@ export function BrandProvider({ children, initialBrand }: BrandProviderProps) {
     root.style.setProperty("--brand-accent", brand.accentColor);
   }, [brand.accentColor]);
 
-  // Keep brand state in sync with organization changes (e.g., Clerk org switching)
+  // Keep brand state in sync with organization changes
   React.useEffect(() => {
-    setBrandState((prev) => ({
-      ...prev,
-      accentColor: organization.accentColor || prev.accentColor,
-      logoUrl: organization.logoUrl ?? prev.logoUrl,
-      orgName: organization.name || prev.orgName,
-    }));
-  }, [organization.accentColor, organization.logoUrl, organization.name]);
+    if (organization) {
+      setBrandState((prev) => ({
+        ...prev,
+        accentColor: organization.accentColor || prev.accentColor,
+        logoUrl: organization.logoUrl ?? prev.logoUrl,
+        orgName: organization.name || prev.orgName,
+      }));
+    }
+  }, [organization]);
 
   const value = React.useMemo(() => ({ brand, setBrand }), [brand, setBrand]);
 

@@ -2,13 +2,16 @@
 
 import { eq, and, like, or, asc } from "drizzle-orm";
 import { createDb, type D1Database } from "@/lib/db";
+import { getDb } from "@/lib/db/get-db";
 import {
   contacts,
   contactRoles,
   projectContacts,
+  organizations,
   generateId
 } from "@/lib/db/schema";
 import { getD1Database } from "@/lib/cloudflare/get-env";
+import { getActiveOrganizationSafe } from "@/lib/organizations/get-active-organization";
 import type {
   Contact,
   NewContact,
@@ -18,6 +21,8 @@ import type {
   UserType
 } from "@/lib/db/schema";
 
+// Note: We should use getActiveOrganization() instead of DEFAULT_ORG_ID
+// This constant is kept for backward compatibility but should be avoided
 const DEFAULT_ORG_ID = process.env.NEXT_PUBLIC_DEFAULT_ORG_ID || "org-1";
 
 // =============================================================================
@@ -29,7 +34,7 @@ export async function getContacts(filters?: {
   orgId?: string;
 }): Promise<Contact[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);
@@ -60,7 +65,7 @@ export async function getContacts(filters?: {
 
 export async function getContact(id: string): Promise<Contact | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -77,7 +82,7 @@ export async function getContact(id: string): Promise<Contact | null> {
  */
 export async function getContactByEmail(email: string): Promise<Contact | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -98,7 +103,7 @@ export async function getContactByEmail(email: string): Promise<Contact | null> 
  */
 export async function getContactsByEmail(email: string): Promise<Contact[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);
@@ -112,41 +117,107 @@ export async function getContactsByEmail(email: string): Promise<Contact[]> {
 }
 
 export async function createContact(data: Omit<NewContact, "id" | "createdAt" | "updatedAt">): Promise<Contact> {
-  const d1 = getD1Database() as D1Database | null;
-  if (!d1) throw new Error("D1 database not available");
+  try {
+    console.log("=== createContact called ===");
+    console.log("Data:", JSON.stringify(data, null, 2));
+    
+    const db = await getDb();
+    console.log("Database instance:", db ? "available" : "null");
+    
+    if (!db) {
+      console.error("D1 database not available in createContact");
+      const env = await getD1Database();
+      console.error("getD1Database() returned:", env ? "non-null" : "null");
+      throw new Error("Database not available. Please check your Cloudflare configuration.");
+    }
+    
+    // Get organization ID - use provided orgId or get from active organization
+    let orgId = data.orgId;
+    if (!orgId) {
+      const activeOrg = await getActiveOrganizationSafe();
+      if (!activeOrg) {
+        throw new Error("No active organization. Please sign in and try again.");
+      }
+      orgId = activeOrg.id;
+      console.log("Using active organization:", orgId);
+    }
+    
+    // Verify organization exists
+    const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).get();
+    if (!org) {
+      console.error(`Organization ${orgId} does not exist`);
+      throw new Error(`Organization not found. Please create the organization first or use a valid organization ID.`);
+    }
+    
+    const now = new Date();
+    const contactId = generateId();
 
-  const db = createDb(d1);
-  const now = new Date();
-  const contactId = generateId();
+    const newContact: NewContact = {
+      id: contactId,
+      orgId: orgId,
+      userId: data.userId || null,
+      name: data.name,
+      email: data.email || null,
+      phone: data.phone || null,
+      company: data.company || null,
+      role: data.role || null,
+      avatarUrl: data.avatarUrl || null,
+      notes: data.notes || null,
+      isInvited: data.isInvited || false,
+      invitedAt: data.invitedAt || null,
+      createdAt: now,
+      updatedAt: now,
+    };
 
-  const newContact: NewContact = {
-    id: contactId,
-    orgId: data.orgId || DEFAULT_ORG_ID,
-    userId: data.userId || null,
-    name: data.name,
-    email: data.email || null,
-    phone: data.phone || null,
-    company: data.company || null,
-    role: data.role || null,
-    avatarUrl: data.avatarUrl || null,
-    notes: data.notes || null,
-    isInvited: data.isInvited || false,
-    invitedAt: data.invitedAt || null,
-    createdAt: now,
-    updatedAt: now,
-  };
+    console.log("Inserting contact:", contactId, "for org:", orgId);
+    try {
+      await db.insert(contacts).values(newContact);
+      console.log("Contact inserted successfully");
+    } catch (insertError: unknown) {
+      console.error("=== INSERT ERROR ===");
+      console.error("Insert error:", insertError);
+      if (insertError instanceof Error) {
+        console.error("Error message:", insertError.message);
+        console.error("Error cause:", insertError.cause);
+        
+        // Check for common SQL errors
+        const errorMsg = insertError.message.toLowerCase();
+        if (errorMsg.includes("foreign key") || errorMsg.includes("constraint")) {
+          if (errorMsg.includes("org")) {
+            throw new Error(`Organization ${orgId} does not exist in the database. Please create it first.`);
+          }
+          throw new Error(`Database constraint failed: ${insertError.message}`);
+        }
+        if (errorMsg.includes("not null")) {
+          throw new Error(`Required field is missing: ${insertError.message}`);
+        }
+        throw new Error(`Failed to insert contact: ${insertError.message}`);
+      }
+      throw insertError;
+    }
 
-  await db.insert(contacts).values(newContact);
+    const result = await db.select().from(contacts).where(eq(contacts.id, contactId)).get();
+    if (!result) throw new Error("Failed to create contact - contact was not found after creation");
 
-  const result = await db.select().from(contacts).where(eq(contacts.id, contactId)).get();
-  if (!result) throw new Error("Failed to create contact");
-
-  return result;
+    console.log("Contact created successfully:", result.id);
+    return result;
+  } catch (error) {
+    console.error("=== ERROR in createContact ===");
+    console.error("Error type:", typeof error);
+    console.error("Error:", error);
+    if (error instanceof Error) {
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      throw error; // Re-throw the error as-is to preserve the message
+    }
+    throw new Error(`Failed to create contact: ${String(error)}`);
+  }
 }
 
 export async function updateContact(id: string, data: Partial<NewContact>): Promise<Contact | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -165,7 +236,7 @@ export async function updateContact(id: string, data: Partial<NewContact>): Prom
 
 export async function deleteContact(id: string): Promise<boolean> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return false;
 
     const db = createDb(d1);
@@ -258,7 +329,7 @@ export async function linkUserToContact(contactId: string, userId: string): Prom
 
 export async function getContactRoles(orgId?: string): Promise<ContactRole[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);
@@ -281,7 +352,7 @@ export async function createContactRole(data: {
   name: string;
   description?: string;
 }): Promise<ContactRole> {
-  const d1 = getD1Database() as D1Database | null;
+  const d1 = await getD1Database() as D1Database | null;
   if (!d1) throw new Error("D1 database not available");
 
   const db = createDb(d1);
@@ -311,7 +382,7 @@ export async function createContactRole(data: {
 
 export async function getProjectContacts(projectId: string): Promise<(ProjectContact & { contact: Contact; role: ContactRole | null })[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);
@@ -346,10 +417,8 @@ export async function addContactToProject(data: {
   permission?: PermissionLevel;
   sendInvite?: boolean;
 }): Promise<{ projectContact: ProjectContact; invited: boolean }> {
-  const d1 = getD1Database() as D1Database | null;
-  if (!d1) throw new Error("D1 database not available");
-
-  const db = createDb(d1);
+  const db = await getDb();
+  if (!db) throw new Error("D1 database not available");
   const now = new Date();
 
   // Check if already exists
@@ -441,7 +510,7 @@ export async function createAndAddContactToProject(data: {
 
 export async function removeContactFromProject(projectId: string, contactId: string): Promise<boolean> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return false;
 
     const db = createDb(d1);
@@ -466,7 +535,7 @@ export async function updateProjectContact(
   data: Partial<Pick<ProjectContact, "roleId" | "isPrimary" | "permission">>
 ): Promise<ProjectContact | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return null;
 
     const db = createDb(d1);
@@ -496,7 +565,7 @@ export async function getContactProjects(contactId: string): Promise<{
   permission: PermissionLevel;
 }[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);
@@ -526,7 +595,7 @@ export async function getProjectAccessForUser(userId: string): Promise<{
   contact: Contact;
 }[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) return [];
 
     const db = createDb(d1);

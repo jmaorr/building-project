@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin, Calendar, DollarSign, MoreHorizontal } from "lucide-react";
+import { MapPin, Calendar, DollarSign, MoreHorizontal, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +13,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Project } from "@/lib/db/schema";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type { Project, PermissionLevel } from "@/lib/db/schema";
 
 interface ProjectCardProps {
   project: Project;
   progress?: number;
   currentPhase?: string;
+  accessType?: "owned" | "shared";
+  permission?: PermissionLevel;
   onDelete?: (id: string) => void;
   isDeleting?: boolean;
 }
@@ -31,8 +39,24 @@ const statusConfig = {
   archived: { label: "Archived", className: "bg-gray-500/10 text-gray-500 dark:text-gray-500" },
 };
 
-export function ProjectCard({ project, progress = 0, currentPhase, onDelete, isDeleting = false }: ProjectCardProps) {
+const permissionLabels: Record<PermissionLevel, string> = {
+  admin: "Admin",
+  editor: "Editor",
+  viewer: "Viewer",
+};
+
+export function ProjectCard({ 
+  project, 
+  progress = 0, 
+  currentPhase, 
+  accessType,
+  permission,
+  onDelete, 
+  isDeleting = false 
+}: ProjectCardProps) {
   const status = statusConfig[project.status] || statusConfig.draft;
+  const isShared = accessType === "shared";
+  const canDelete = !isShared || permission === "admin";
   
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return "—";
@@ -57,12 +81,28 @@ export function ProjectCard({ project, progress = 0, currentPhase, onDelete, isD
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1 min-w-0">
-            <Link 
-              href={`/projects/${project.id}`}
-              className="font-medium text-base hover:text-brand transition-colors line-clamp-1"
-            >
-              {project.name}
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link 
+                href={`/projects/${project.id}`}
+                className="font-medium text-base hover:text-brand transition-colors line-clamp-1"
+              >
+                {project.name}
+              </Link>
+              {isShared && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Share2 className="h-3.5 w-3.5" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Shared with you as {permissionLabels[permission || "viewer"]}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
             {project.address && (
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -91,10 +131,12 @@ export function ProjectCard({ project, progress = 0, currentPhase, onDelete, isD
                 <DropdownMenuItem asChild>
                   <Link href={`/projects/${project.id}`}>View Project</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={`/projects/${project.id}/settings`}>Settings</Link>
-                </DropdownMenuItem>
-                {onDelete && (
+                {(!isShared || permission === "admin") && (
+                  <DropdownMenuItem asChild>
+                    <Link href={`/projects/${project.id}/settings`}>Settings</Link>
+                  </DropdownMenuItem>
+                )}
+                {onDelete && canDelete && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
@@ -150,5 +192,3 @@ export function ProjectCard({ project, progress = 0, currentPhase, onDelete, isD
     </Card>
   );
 }
-
-

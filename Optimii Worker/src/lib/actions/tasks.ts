@@ -15,7 +15,7 @@ import { canEditProject } from "@/lib/auth/permissions";
 
 export async function getStageTasks(stageId: string): Promise<Task[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
         const db = createDb(d1);
@@ -39,7 +39,7 @@ export async function createTask(data: {
     dueDate?: Date;
     assignedTo?: string;
 }): Promise<Task> {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) throw new Error("D1 database not available");
 
     const user = await getCurrentUser();
@@ -99,7 +99,7 @@ export async function createTask(data: {
 
 export async function updateTask(id: string, data: Partial<NewTask>): Promise<Task | null> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return null;
 
         const db = createDb(d1);
@@ -146,7 +146,7 @@ export async function updateTask(id: string, data: Partial<NewTask>): Promise<Ta
 
 export async function deleteTask(id: string): Promise<boolean> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return false;
 
         const db = createDb(d1);
@@ -180,7 +180,7 @@ export async function deleteTask(id: string): Promise<boolean> {
 
 export async function reorderTasks(stageId: string, taskIds: string[]): Promise<void> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return;
 
         const db = createDb(d1);

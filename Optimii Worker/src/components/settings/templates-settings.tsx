@@ -74,7 +74,8 @@ type TemplateDetail = {
 };
 
 export function TemplatesSettings() {
-  const { id: orgId } = useOrganization();
+  const { organization } = useOrganization();
+  const orgId = organization?.id;
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -96,6 +97,11 @@ export function TemplatesSettings() {
   const [dragOverStage, setDragOverStage] = useState<{ phaseId: string; index: number } | null>(null);
 
   const loadTemplates = useCallback(async () => {
+    if (!orgId) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
       const orgTemplates = await getOrgTemplates(orgId);
@@ -842,7 +848,7 @@ function TemplatePreview({ phases }: { phases: PhaseWithModules[] }) {
 // Create Template Dialog
 // =============================================================================
 
-function CreateTemplateDialog({ open, onOpenChange, onCreated, orgId }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (id: string) => void; orgId: string }) {
+function CreateTemplateDialog({ open, onOpenChange, onCreated, orgId }: { open: boolean; onOpenChange: (open: boolean) => void; onCreated: (id: string) => void; orgId?: string }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -850,6 +856,10 @@ function CreateTemplateDialog({ open, onOpenChange, onCreated, orgId }: { open: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+    if (!orgId) {
+      console.error("No organization ID available");
+      return;
+    }
 
     setIsSubmitting(true);
     try {

@@ -30,9 +30,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Share2, UserPlus, Trash2, Check, Clock, Building2 } from "lucide-react";
+import { Loader2, Share2, UserPlus, Trash2, Check, Clock, Building2, Mail } from "lucide-react";
 import {
-    shareProjectWithOrg,
+    shareProjectWithEmail,
     getProjectShares,
     removeProjectShare,
 } from "@/lib/actions/projects";
@@ -50,6 +50,7 @@ interface Share {
     orgName: string;
     permission: string;
     accepted: boolean;
+    invitedAt: Date;
 }
 
 export function ProjectShare({ projectId, children }: ProjectShareProps) {
@@ -57,7 +58,7 @@ export function ProjectShare({ projectId, children }: ProjectShareProps) {
     const [open, setOpen] = useState(false);
     const [shares, setShares] = useState<Share[]>([]);
     const [loading, setLoading] = useState(false);
-    const [orgEmail, setOrgEmail] = useState("");
+    const [email, setEmail] = useState("");
     const [permission, setPermission] = useState<PermissionLevel>("editor");
     const [submitting, setSubmitting] = useState(false);
     const [confirmRemove, setConfirmRemove] = useState<{ id: string; name: string } | null>(null);
@@ -83,24 +84,40 @@ export function ProjectShare({ projectId, children }: ProjectShareProps) {
 
     async function handleShare(e: React.FormEvent) {
         e.preventDefault();
-        if (!orgEmail.trim()) return;
+        if (!email.trim()) return;
+
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            toast({
+                title: "Invalid email",
+                description: "Please enter a valid email address",
+                variant: "destructive",
+            });
+            return;
+        }
 
         setSubmitting(true);
         try {
-            // Note: In a full implementation, we'd lookup the org by email/name
-            // For now, we're passing the orgId directly (you'd replace this with an org search)
-            const result = await shareProjectWithOrg({
+            const result = await shareProjectWithEmail({
                 projectId,
-                orgId: orgEmail.trim(), // This would be the org ID from a search
+                email: email.trim(),
                 permission,
             });
 
             if (result.success) {
-                toast({
-                    title: "Project shared",
-                    description: "An invitation has been sent to the organization.",
-                });
-                setOrgEmail("");
+                if (result.pending) {
+                    toast({
+                        title: "Invitation sent",
+                        description: `An email has been sent to ${email}. They'll get access when they sign up.`,
+                    });
+                } else {
+                    toast({
+                        title: "Project shared",
+                        description: `${email} now has ${permission} access to this project.`,
+                    });
+                }
+                setEmail("");
                 await loadShares();
             } else {
                 toast({
@@ -172,37 +189,52 @@ export function ProjectShare({ projectId, children }: ProjectShareProps) {
                             Share Project
                         </DialogTitle>
                         <DialogDescription>
-                            Invite other organizations to collaborate on this project.
+                            Invite people to collaborate on this project by email.
                         </DialogDescription>
                     </DialogHeader>
 
                     {/* Invite Form */}
                     <form onSubmit={handleShare} className="space-y-4 border-b pb-4">
-                        <div className="flex gap-2">
-                            <Input
-                                value={orgEmail}
-                                onChange={(e) => setOrgEmail(e.target.value)}
-                                placeholder="Organization ID or email"
-                                className="flex-1"
-                            />
-                            <Select value={permission} onValueChange={(v) => setPermission(v as PermissionLevel)}>
-                                <SelectTrigger className="w-28">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="viewer">Viewer</SelectItem>
-                                    <SelectItem value="editor">Editor</SelectItem>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <div className="space-y-2">
+                            <label htmlFor="share-email" className="text-sm font-medium">
+                                Email address
+                            </label>
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="share-email"
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="colleague@example.com"
+                                        className="pl-9"
+                                    />
+                                </div>
+                                <Select value={permission} onValueChange={(v) => setPermission(v as PermissionLevel)}>
+                                    <SelectTrigger className="w-28">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="viewer">Viewer</SelectItem>
+                                        <SelectItem value="editor">Editor</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                {permission === "viewer" && "Can view the project but cannot make changes"}
+                                {permission === "editor" && "Can add and edit content within the project"}
+                                {permission === "admin" && "Can manage settings, sharing, and all content"}
+                            </p>
                         </div>
-                        <Button type="submit" className="w-full" disabled={!orgEmail.trim() || submitting}>
+                        <Button type="submit" className="w-full" disabled={!email.trim() || submitting}>
                             {submitting ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                                 <UserPlus className="mr-2 h-4 w-4" />
                             )}
-                            Send Invite
+                            Send Invitation
                         </Button>
                     </form>
 
@@ -215,7 +247,7 @@ export function ProjectShare({ projectId, children }: ProjectShareProps) {
                             </div>
                         ) : shares.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-4">
-                                Not shared with any other organizations yet.
+                                Not shared with anyone yet. Invite collaborators above.
                             </p>
                         ) : (
                             <div className="space-y-2 max-h-48 overflow-y-auto">

@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Cloudflare bindings
-    const env = getCloudflareEnv();
-    const r2Bucket = env?.R2_BUCKET || getR2Bucket();
+    const r2Bucket = await getR2Bucket();
+    const env = await getCloudflareEnv();
     const dbBinding = env?.DB as D1Database | undefined;
     
     if (!dbBinding) {

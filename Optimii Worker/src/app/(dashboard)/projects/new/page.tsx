@@ -27,7 +27,8 @@ export default function NewProjectPage() {
   const router = useRouter();
   const [step, setStep] = useState<"template" | "details">("template");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { id: orgId } = useOrganization();
+  const { organization } = useOrganization();
+  const orgId = organization?.id;
 
   // Template state
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
@@ -41,9 +42,14 @@ export default function NewProjectPage() {
 
   // Load templates
   useEffect(() => {
-    async function loadTemplates() {
+    if (!orgId) {
+      setLoadingTemplates(false);
+      return;
+    }
+    
+    async function loadTemplates(id: string) {
       try {
-        const orgTemplates = await getOrgTemplates(orgId);
+        const orgTemplates = await getOrgTemplates(id);
         setTemplates(orgTemplates);
 
         // Pre-select the default template
@@ -58,7 +64,7 @@ export default function NewProjectPage() {
         setLoadingTemplates(false);
       }
     }
-    loadTemplates();
+    loadTemplates(orgId);
   }, [orgId]);
 
   async function loadTemplatePreview(id: string) {
@@ -84,6 +90,13 @@ export default function NewProjectPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
+
+    if (!orgId) {
+      console.error("No organization ID available");
+      alert("Organization not loaded. Please refresh the page.");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const formData = new FormData(e.currentTarget);

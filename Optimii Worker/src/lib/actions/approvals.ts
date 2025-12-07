@@ -28,7 +28,7 @@ export async function getApprovalsByStage(
   roundNumber?: number
 ): Promise<ApprovalWithAssignee[]> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       console.warn("D1 database not available, returning empty array");
       return [];
@@ -73,7 +73,7 @@ export async function requestApproval(data: {
   assigneeName?: string;
 }): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       console.error("D1 database not available");
       return null;
@@ -138,7 +138,7 @@ export async function approveApproval(
   notes?: string
 ): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       console.error("D1 database not available");
       return null;
@@ -219,7 +219,7 @@ export async function rejectApproval(
   notes?: string
 ): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       console.error("D1 database not available");
       return null;
@@ -285,7 +285,7 @@ export async function rejectApproval(
  */
 export async function getApproval(id: string): Promise<ApprovalWithAssignee | null> {
   try {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) {
       return null;
     }

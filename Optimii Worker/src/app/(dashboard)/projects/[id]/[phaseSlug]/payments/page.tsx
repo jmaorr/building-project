@@ -10,22 +10,18 @@ import {
   DollarSign, 
   Clock, 
   CheckCircle2, 
-  Edit2,
-  Trash2,
-  Paperclip,
-  MoreVertical,
+  Filter,
+  Table2,
+  LayoutGrid,
 } from "lucide-react";
-import { AddCostDialog } from "@/components/costs";
-import { CostFilesDialog } from "@/components/costs/cost-files-dialog";
-import { EditableCell } from "@/components/costs/editable-cell";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { markAsPaid, deleteCost, updateCost } from "@/lib/actions/costs";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AddCostDialog, CostsTable } from "@/components/costs";
 import { 
   getCostsByPhase, 
   getPhaseCostSummary,
@@ -36,9 +32,9 @@ import { getProjectContacts } from "@/lib/actions/contacts";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import type { Stage, Contact } from "@/lib/db/schema";
 import { resolvePhaseFromSlug } from "@/lib/utils/slug";
-import { cn } from "@/lib/utils";
 
 
+type FilterType = "all" | "stage-linked" | "general";
 
 export default function PaymentsPage() {
   const params = useParams();
@@ -61,7 +57,8 @@ export default function PaymentsPage() {
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingCost, setEditingCost] = useState<CostWithFiles | null>(null);
-  const [filesDialogCost, setFilesDialogCost] = useState<CostWithFiles | null>(null);
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [viewMode, setViewMode] = useState<"table" | "card">("table");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -130,30 +127,9 @@ export default function PaymentsPage() {
     loadData();
   };
 
-  const handleCostUpdate = async (costId: string, field: string, value: string | number | null) => {
-    try {
-      const updateData: Record<string, unknown> = { [field]: value };
-      await updateCost(costId, updateData);
-      loadData();
-    } catch (error) {
-      console.error("Failed to update cost:", error);
-      alert("Failed to update cost. Please try again.");
-    }
-  };
-
   const handleEdit = (cost: CostWithFiles) => {
     setEditingCost(cost);
     setIsAddDialogOpen(true);
-  };
-
-  const handleMarkAsPaid = async (cost: CostWithFiles) => {
-    try {
-      await markAsPaid(cost.id, "external");
-      loadData();
-    } catch (error) {
-      console.error("Failed to mark as paid:", error);
-      alert("Failed to mark cost as paid. Please try again.");
-    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -165,6 +141,12 @@ export default function PaymentsPage() {
     }).format(amount);
   };
 
+  // Filter costs
+  const filteredCosts = costs.filter(cost => {
+    if (filter === "stage-linked") return !!cost.stageId;
+    if (filter === "general") return !cost.stageId;
+    return true;
+  });
 
   if (isLoading) {
     return (
@@ -260,168 +242,79 @@ export default function PaymentsPage() {
         </Card>
       </div>
 
+
+      {/* View Switcher */}
+      {filteredCosts.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={filter} onValueChange={(v) => setFilter(v as FilterType)}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Costs ({costs.length})</SelectItem>
+                <SelectItem value="stage-linked">
+                  Stage-linked ({costs.filter(c => c.stageId).length})
+                </SelectItem>
+                <SelectItem value="general">
+                  General ({costs.filter(c => !c.stageId).length})
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1 border rounded-lg p-1">
+            <Button
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="h-8 w-8 p-0"
+            >
+              <Table2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "card" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("card")}
+              className="h-8 w-8 p-0"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Costs Table */}
-      {costs.length === 0 ? (
+      {filteredCosts.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Receipt className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="font-medium mb-1">No costs recorded</h3>
+            <h3 className="font-medium mb-1">
+              {costs.length === 0 ? "No costs recorded" : "No costs match filter"}
+            </h3>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Add costs to track spending, quotes, and payments for this phase.
+              {costs.length === 0 
+                ? "Add costs to track spending, quotes, and payments for this phase."
+                : "Try changing the filter to see more costs."}
             </p>
-            <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add First Cost
-            </Button>
+            {costs.length === 0 && (
+              <Button className="mt-4" onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add First Cost
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto border rounded-lg">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left p-4 font-medium text-sm">Name & Description</th>
-                <th className="text-right p-4 font-medium text-sm">Quoted</th>
-                <th className="text-right p-4 font-medium text-sm">Actual</th>
-                <th className="text-right p-4 font-medium text-sm">Paid</th>
-                <th className="text-center p-4 font-medium text-sm">Invoices</th>
-                <th className="text-right p-4 font-medium text-sm">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {costs.map((cost) => {
-                const hasFiles = cost.files && cost.files.length > 0;
-                return (
-                  <tr key={cost.id} className="border-b hover:bg-muted/30 transition-colors">
-                    <td className="p-4">
-                      <div className="space-y-1">
-                        <EditableCell
-                          value={cost.name}
-                          onSave={(value) => handleCostUpdate(cost.id, "name", value as string)}
-                          type="text"
-                          className="font-medium"
-                        />
-                        {cost.description && (
-                          <div className="text-sm text-muted-foreground line-clamp-1">
-                            {cost.description}
-                          </div>
-                        )}
-                        {cost.stageName && (
-                          <div className="text-xs text-muted-foreground">
-                            Stage: {cost.stageName}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end">
-                        <EditableCell
-                          value={cost.quotedAmount}
-                          onSave={(value) => handleCostUpdate(cost.id, "quotedAmount", value as number | null)}
-                          type="currency"
-                          formatValue={(val) => val ? formatCurrency(val as number) : "—"}
-                          className="text-right"
-                        />
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end">
-                        <EditableCell
-                          value={cost.actualAmount}
-                          onSave={(value) => handleCostUpdate(cost.id, "actualAmount", value as number | null)}
-                          type="currency"
-                          formatValue={(val) => val ? formatCurrency(val as number) : "—"}
-                          className="text-right"
-                        />
-                      </div>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end">
-                        <EditableCell
-                          value={cost.paidAmount}
-                          onSave={(value) => handleCostUpdate(cost.id, "paidAmount", value as number | null)}
-                          type="currency"
-                          formatValue={(val) => val ? formatCurrency(val as number) : "—"}
-                          className={cn(
-                            "text-right",
-                            (cost.paidAmount ?? 0) > 0 && "text-green-600 font-medium"
-                          )}
-                        />
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      {hasFiles ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <Paperclip className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
-                            {cost.files.length}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-end gap-2">
-                        {cost.paymentStatus !== "paid" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleMarkAsPaid(cost)}
-                            className="h-8"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                            Mark Paid
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setFilesDialogCost(cost)}
-                          className="h-8"
-                        >
-                          <Paperclip className="h-3.5 w-3.5 mr-1.5" />
-                          Files
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(cost)}>
-                              <Edit2 className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              onClick={async () => {
-                                if (confirm("Are you sure you want to delete this cost?")) {
-                                  try {
-                                    await deleteCost(cost.id);
-                                    handleCostDeleted();
-                                  } catch (error) {
-                                    console.error("Failed to delete cost:", error);
-                                    alert("Failed to delete cost. Please try again.");
-                                  }
-                                }
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CostsTable
+          costs={filteredCosts}
+          projectId={projectId}
+          onCostUpdated={loadData}
+          onCostDeleted={handleCostDeleted}
+          showStageName={true}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
       )}
 
       {/* Add/Edit Cost Dialog */}
@@ -442,22 +335,6 @@ export default function PaymentsPage() {
           cost={editingCost}
           onCostCreated={handleCostCreated}
           onCostUpdated={handleCostUpdated}
-        />
-      )}
-
-      {/* Cost Files Dialog */}
-      {filesDialogCost && (
-        <CostFilesDialog
-          open={!!filesDialogCost}
-          onOpenChange={(open) => {
-            if (!open) {
-              setFilesDialogCost(null);
-            }
-          }}
-          costId={filesDialogCost.id}
-          projectId={projectId}
-          costName={filesDialogCost.name}
-          onFilesUpdated={loadData}
         />
       )}
     </div>

@@ -5,37 +5,25 @@ import { ThemeProvider } from "./theme-provider";
 import { BrandProvider } from "./brand-provider";
 import { OrganizationProvider } from "./organization-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { ActiveOrganization } from "@/lib/organizations/get-active-organization";
+import { Toaster } from "@/components/ui/toaster";
 
 interface ProvidersProps {
   children: React.ReactNode;
-  /** Initial brand configuration */
-  initialBrand?: {
-    accentColor?: string;
-    logoUrl?: string;
-    orgName?: string;
-  };
-  organization?: Partial<ActiveOrganization>;
 }
 
 /**
  * Root providers wrapper - combines all context providers
+ * Organization data is loaded client-side after authentication
  */
-export function Providers({ children, initialBrand, organization }: ProvidersProps) {
-  const brandFromOrg = React.useMemo(() => {
-    if (!organization) return initialBrand;
-    return {
-      accentColor: organization.accentColor || initialBrand?.accentColor,
-      logoUrl: organization.logoUrl || initialBrand?.logoUrl,
-      orgName: organization.name || initialBrand?.orgName,
-    };
-  }, [initialBrand, organization]);
-
+export function Providers({ children }: ProvidersProps) {
   return (
     <ThemeProvider>
-      <OrganizationProvider organization={organization}>
-        <BrandProvider initialBrand={brandFromOrg}>
-          <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+      <OrganizationProvider>
+        <BrandProvider>
+          <TooltipProvider delayDuration={300}>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </BrandProvider>
       </OrganizationProvider>
     </ThemeProvider>

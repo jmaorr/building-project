@@ -15,7 +15,7 @@ import { canEditProject } from "@/lib/auth/permissions";
 
 export async function getStageTimelineEvents(stageId: string): Promise<TimelineEvent[]> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return [];
 
         const db = createDb(d1);
@@ -40,7 +40,7 @@ export async function createTimelineEvent(data: {
     endDate?: Date;
     type: TimelineEvent["type"];
 }): Promise<TimelineEvent> {
-    const d1 = getD1Database() as D1Database | null;
+    const d1 = await getD1Database() as D1Database | null;
     if (!d1) throw new Error("D1 database not available");
 
     const user = await getCurrentUser();
@@ -86,7 +86,7 @@ export async function createTimelineEvent(data: {
 
 export async function updateTimelineEvent(id: string, data: Partial<NewTimelineEvent>): Promise<TimelineEvent | null> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return null;
 
         const db = createDb(d1);
@@ -124,7 +124,7 @@ export async function updateTimelineEvent(id: string, data: Partial<NewTimelineE
 
 export async function deleteTimelineEvent(id: string): Promise<boolean> {
     try {
-        const d1 = getD1Database() as D1Database | null;
+        const d1 = await getD1Database() as D1Database | null;
         if (!d1) return false;
 
         const db = createDb(d1);

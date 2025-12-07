@@ -14,10 +14,17 @@ import { useOrganization } from "@/components/providers";
 export default function NewContactPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { id: orgId } = useOrganization();
+  const { organization } = useOrganization();
+  const orgId = organization?.id;
 
   async function handleSubmit(formData: FormData) {
     setIsSubmitting(true);
+    
+    if (!orgId) {
+      console.error("No organization ID available");
+      setIsSubmitting(false);
+      return;
+    }
     
     try {
       const contact = await createContact({

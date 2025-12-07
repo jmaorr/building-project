@@ -80,7 +80,8 @@ interface StatusSettingsProps {
 }
 
 export function StatusSettings({ orgId, projectId, projectName }: StatusSettingsProps) {
-  const { id: activeOrgId } = useOrganization();
+  const { organization } = useOrganization();
+  const activeOrgId = organization?.id;
   const [configs, setConfigs] = useState<StatusConfig[]>([]);
   const [entityType, setEntityType] = useState<"stage" | "project" | "phase">("stage");
   const [isLoading, setIsLoading] = useState(true);
@@ -140,13 +141,19 @@ export function StatusSettings({ orgId, projectId, projectName }: StatusSettings
   const handleAdd = async () => {
     if (!newCode.trim() || !newLabel.trim()) return;
     
+    const effectiveOrgId = orgId || activeOrgId;
+    if (!effectiveOrgId) {
+      console.error("No organization ID available");
+      return;
+    }
+    
     // If using system configs, copy them to org first
     if (!hasCustomConfigs) {
-      await copySystemConfigsToOrg(orgId || activeOrgId, entityType);
+      await copySystemConfigsToOrg(effectiveOrgId, entityType);
     }
     
     const result = await createStatusConfig({
-      orgId: projectId ? undefined : (orgId || activeOrgId),
+      orgId: projectId ? undefined : effectiveOrgId,
       projectId,
       entityType,
       code: newCode.toLowerCase().replace(/\s+/g, "_"),
@@ -179,13 +186,23 @@ export function StatusSettings({ orgId, projectId, projectName }: StatusSettings
   };
 
   const handleReset = async () => {
-    await resetOrgConfigsToDefaults(orgId || activeOrgId, entityType);
+    const effectiveOrgId = orgId || activeOrgId;
+    if (!effectiveOrgId) {
+      console.error("No organization ID available");
+      return;
+    }
+    await resetOrgConfigsToDefaults(effectiveOrgId, entityType);
     loadConfigs();
     setShowResetConfirm(false);
   };
 
   const handleCustomize = async () => {
-    await copySystemConfigsToOrg(orgId || activeOrgId, entityType);
+    const effectiveOrgId = orgId || activeOrgId;
+    if (!effectiveOrgId) {
+      console.error("No organization ID available");
+      return;
+    }
+    await copySystemConfigsToOrg(effectiveOrgId, entityType);
     loadConfigs();
   };
 

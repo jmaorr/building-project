@@ -1,126 +1,87 @@
 "use client";
 
 import * as React from "react";
-import {
-  useOrganization as useClerkOrganization,
-  useOrganizationList,
-} from "@clerk/nextjs";
-import type { ActiveOrganization } from "@/lib/organizations/get-active-organization";
+import { useAuth } from "@clerk/nextjs";
 
-interface OrganizationContextValue extends ActiveOrganization {
-  /** Indicates whether a live org context (from Clerk) has hydrated */
-  isHydrated: boolean;
-  /** Imperatively override the active organization (e.g., after org switch) */
-  setOrganization: (organization: Partial<ActiveOrganization>) => void;
+export interface ActiveOrganization {
+  id: string;
+  name: string;
+  accentColor?: string | null;
+  logoUrl?: string | null;
+  role?: "owner" | "admin" | "member";
 }
 
-const DEFAULT_ORGANIZATION: OrganizationContextValue = {
-  id: "org-1",
-  name: "Optimii",
-  accentColor: "#5e6ad2",
-  logoUrl: null,
+interface OrganizationContextValue {
+  organization: ActiveOrganization | null;
+  isLoading: boolean;
+  isHydrated: boolean;
+  refreshOrganization: () => Promise<void>;
+}
+
+const DEFAULT_VALUE: OrganizationContextValue = {
+  organization: null,
+  isLoading: true,
   isHydrated: false,
-  setOrganization: () => undefined,
+  refreshOrganization: async () => undefined,
 };
 
-const OrganizationContext = React.createContext<OrganizationContextValue>(
-  DEFAULT_ORGANIZATION
-);
+const OrganizationContext = React.createContext<OrganizationContextValue>(DEFAULT_VALUE);
 
 interface OrganizationProviderProps {
   children: React.ReactNode;
-  organization?: Partial<ActiveOrganization>;
-}
-
-function useSafeClerkOrganization() {
-  try {
-    return useClerkOrganization();
-  } catch {
-    return { organization: null, isLoaded: false };
-  }
-}
-
-function useSafeOrganizationList() {
-  try {
-    return useOrganizationList({ userMemberships: true });
-  } catch {
-    return { setActive: async () => undefined, isLoaded: false };
-  }
-}
-
-function mapClerkOrganization(org: ReturnType<typeof useClerkOrganization>["organization"]):
-  | ActiveOrganization
-  | null {
-  if (!org) return null;
-
-  const accentColor = (org.publicMetadata?.accentColor as string | undefined) || undefined;
-  const logoUrl = org.imageUrl || undefined;
-
-  return {
-    id: org.id,
-    name: org.name || DEFAULT_ORGANIZATION.name,
-    accentColor,
-    logoUrl,
-  };
 }
 
 /**
- * Client provider that hydrates active organization details from Clerk when available
- * while supporting a server-provided default organization for static rendering.
+ * Client provider that loads organization data from the server
+ * Only loads after user is authenticated
  */
-export function OrganizationProvider({ children, organization }: OrganizationProviderProps) {
-  const { organization: clerkOrganization, isLoaded } = useSafeClerkOrganization();
-  const { isLoaded: orgListLoaded, setActive } = useSafeOrganizationList();
+export function OrganizationProvider({ children }: OrganizationProviderProps) {
+  const { userId, isLoaded: authLoaded } = useAuth();
+  const [organization, setOrganization] = React.useState<ActiveOrganization | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isHydrated, setIsHydrated] = React.useState(false);
 
-  const [activeOrg, setActiveOrg] = React.useState<OrganizationContextValue>({
-    ...DEFAULT_ORGANIZATION,
-    ...organization,
-  });
+  const loadOrganization = React.useCallback(async () => {
+    if (!userId || !authLoaded) {
+      setIsLoading(false);
+      setIsHydrated(true);
+      return;
+    }
 
-  // Hydrate from Clerk when available and keep in sync with org switching.
-  React.useEffect(() => {
-    const mapped = mapClerkOrganization(clerkOrganization);
-    if (!isLoaded || !mapped) return;
-
-    setActiveOrg((prev) => ({
-      ...prev,
-      ...mapped,
-      isHydrated: true,
-    }));
-  }, [clerkOrganization, isLoaded]);
-
-  // When server provided org changes (navigation), update defaults.
-  React.useEffect(() => {
-    if (!organization) return;
-    setActiveOrg((prev) => ({
-      ...prev,
-      ...organization,
-    }));
-  }, [organization]);
-
-  const setOrganization = React.useCallback(
-    (org: Partial<ActiveOrganization>) => {
-      setActiveOrg((prev) => ({
-        ...prev,
-        ...org,
-      }));
-
-      // If Clerk is available, reflect the change in the Clerk org context too.
-      if (orgListLoaded && org.id) {
-        setActive({ organization: org.id }).catch((error) => {
-          console.error("Failed to set active organization in Clerk", error);
-        });
+    try {
+      setIsLoading(true);
+      
+      // Fetch organization data from server
+      const response = await fetch("/api/organization");
+      if (!response.ok) {
+        throw new Error("Failed to fetch organization");
       }
-    },
-    [orgListLoaded, setActive]
-  );
+      
+      const data = await response.json();
+      setOrganization(data.organization);
+      setIsHydrated(true);
+    } catch (error) {
+      console.error("Error loading organization:", error);
+      setOrganization(null);
+      setIsHydrated(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, authLoaded]);
+
+  // Load organization when auth is ready
+  React.useEffect(() => {
+    loadOrganization();
+  }, [loadOrganization]);
 
   const value = React.useMemo(
     () => ({
-      ...activeOrg,
-      setOrganization,
+      organization,
+      isLoading,
+      isHydrated,
+      refreshOrganization: loadOrganization,
     }),
-    [activeOrg, setOrganization]
+    [organization, isLoading, isHydrated, loadOrganization]
   );
 
   return (

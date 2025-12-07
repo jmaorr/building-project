@@ -18,7 +18,7 @@ export async function logActivity(data: {
   userId: string;
   metadata?: Record<string, unknown>;
 }): Promise<ActivityLog> {
-  const d1 = getD1Database() as D1Database | null;
+  const d1 = await getD1Database() as D1Database | null;
   if (!d1) {
     throw new Error("Database not available");
   }
@@ -50,7 +50,7 @@ export async function getActivityByPhase(
     limit?: number;
   }
 ): Promise<ActivityLog[]> {
-  const d1 = getD1Database() as D1Database | null;
+  const d1 = await getD1Database() as D1Database | null;
   if (!d1) {
     return [];
   }
@@ -94,7 +94,7 @@ export async function getActivityByProject(
     limit?: number;
   }
 ): Promise<ActivityLog[]> {
-  const d1 = getD1Database() as D1Database | null;
+  const d1 = await getD1Database() as D1Database | null;
   if (!d1) {
     return [];
   }

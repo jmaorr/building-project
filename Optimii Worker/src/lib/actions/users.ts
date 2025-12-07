@@ -1,86 +1,206 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { users, contacts, projectContacts, generateId, type User, type NewUser, type UserType } from "@/lib/db/schema";
+import { users, organizations, organizationMembers, contacts, projectContacts, generateId, type User, type NewUser, type UserType } from "@/lib/db/schema";
 import { getDb } from "@/lib/db/get-db";
 import { currentUser, auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
+
+// =============================================================================
+// CORE USER/ORG CREATION - Single source of truth
+// =============================================================================
+
+// In-memory mutex to prevent concurrent ensureUserHasOrg calls for the same user
+const userOrgCreationLocks = new Map<string, Promise<{ user: User; orgId: string } | null>>();
 
 /**
- * Get or create a user from Clerk ID
- * This ensures the user exists in our database before we reference them
+ * Ensure the current authenticated user exists in D1 with an organization.
+ * This is THE single function that creates users and orgs.
+ * It's idempotent - safe to call multiple times.
+ * Uses an in-memory mutex to prevent race conditions from concurrent calls.
+ * 
+ * @param providedClerkId - Optional clerkId passed from caller (avoids auth context issues)
+ * Returns: { user, orgId } or null if not authenticated or DB unavailable
  */
-export async function getOrCreateUserFromClerk(clerkId: string): Promise<User | null> {
-  const db = await getDb();
-  if (!db) {
-    console.error("Database not available.");
+export async function ensureUserHasOrg(providedClerkId?: string): Promise<{ user: User; orgId: string } | null> {
+  // 1. Check Clerk authentication first
+  let clerkId = providedClerkId;
+  if (!clerkId) {
+    const authResult = await auth();
+    clerkId = authResult.userId ?? undefined;
+  }
+  
+  if (!clerkId) {
+    console.log("ensureUserHasOrg: No Clerk user ID");
     return null;
   }
 
-  // Try to find existing user by clerkId
-  const existingUser = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .get();
-
-  if (existingUser) {
-    return existingUser;
+  // 2. Check if there's already a pending operation for this user
+  const existingLock = userOrgCreationLocks.get(clerkId);
+  if (existingLock) {
+    console.log(`ensureUserHasOrg: Waiting for existing operation for user ${clerkId}`);
+    return existingLock;
   }
 
-  // User doesn't exist, create one from Clerk data
-  const clerkUser = await currentUser();
-  if (!clerkUser || clerkUser.id !== clerkId) {
-    console.error("Clerk user not found or ID mismatch");
-    return null;
+  // 3. Create a new promise for this operation and store it in the map
+  const operationPromise = ensureUserHasOrgInternal(clerkId);
+  userOrgCreationLocks.set(clerkId, operationPromise);
+
+  try {
+    const result = await operationPromise;
+    return result;
+  } finally {
+    // 4. Remove the lock after the operation completes (success or failure)
+    userOrgCreationLocks.delete(clerkId);
   }
-
-  const userType = (clerkUser.unsafeMetadata?.userType as UserType) || null;
-
-  const newUser: NewUser = {
-    id: generateId(),
-    clerkId: clerkUser.id,
-    email: clerkUser.emailAddresses[0]?.emailAddress || "",
-    firstName: clerkUser.firstName || null,
-    lastName: clerkUser.lastName || null,
-    avatarUrl: clerkUser.imageUrl || null,
-    userType,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-
-  await db.insert(users).values(newUser).run();
-
-  // Merge contacts with matching email
-  const email = clerkUser.emailAddresses[0]?.emailAddress;
-  if (email) {
-    await mergeContactsForUser(newUser.id!, email);
-  }
-
-  return newUser as User;
 }
 
 /**
- * Get user by Clerk ID
+ * Internal implementation of ensureUserHasOrg
+ * This is the actual logic that runs protected by the mutex
  */
-export async function getUserByClerkId(clerkId: string): Promise<User | null> {
-  const db = await getDb();
-  if (!db) {
-    console.error("Database not available.");
+async function ensureUserHasOrgInternal(clerkId: string): Promise<{ user: User; orgId: string } | null> {
+  try {
+    // 1. Get Clerk user data (we'll need this for creating records)
+    const clerkUser = await currentUser();
+    if (!clerkUser) {
+      console.error("ensureUserHasOrgInternal: Could not get Clerk user data for clerkId:", clerkId);
+      return null;
+    }
+
+    // 2. Get database connection
+    const db = await getDb();
+    if (!db) {
+      console.error("ensureUserHasOrgInternal: Database not available");
+      return null;
+    }
+
+    // 3. Check if user already exists in D1
+    let user = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkId))
+      .get();
+
+    // 4. Create user if doesn't exist
+    if (!user) {
+      const email = clerkUser.emailAddresses[0]?.emailAddress || "";
+      const now = new Date();
+      const userId = generateId();
+      
+      const newUser: NewUser = {
+        id: userId,
+        clerkId: clerkUser.id,
+        email,
+        firstName: clerkUser.firstName || null,
+        lastName: clerkUser.lastName || null,
+        avatarUrl: clerkUser.imageUrl || null,
+        userType: null, // Will be set during onboarding
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await db.insert(users).values(newUser).run();
+      console.log(`ensureUserHasOrgInternal: Created user ${userId}`);
+      
+      // Fetch the created user to get the full record
+      user = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .get();
+      
+      if (!user) {
+        console.error("ensureUserHasOrgInternal: Failed to fetch newly created user");
+        return null;
+      }
+
+      // Link any existing contacts with this email
+      await linkContactsToUser(db, user.id, email);
+    }
+
+    // 5. Check if user has an organization membership
+    const membership = await db
+      .select()
+      .from(organizationMembers)
+      .where(eq(organizationMembers.userId, user.id))
+      .get();
+
+    if (membership) {
+      // User already has an org
+      console.log(`ensureUserHasOrgInternal: User ${user.id} already has org ${membership.orgId}`);
+      return { user, orgId: membership.orgId };
+    }
+
+    // 6. Create a personal organization for the user
+    const now = new Date();
+    const orgId = generateId();
+    
+    const orgName = user.firstName && user.lastName
+      ? `${user.firstName} ${user.lastName}'s Organization`
+      : user.firstName
+      ? `${user.firstName}'s Organization`
+      : `${user.email.split("@")[0]}'s Organization`;
+
+    await db.insert(organizations).values({
+      id: orgId,
+      name: orgName,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    await db.insert(organizationMembers).values({
+      id: generateId(),
+      orgId,
+      userId: user.id,
+      role: "owner",
+      createdAt: now,
+    }).run();
+
+    console.log(`ensureUserHasOrgInternal: Created org ${orgId} for user ${user.id}`);
+    return { user, orgId };
+
+  } catch (error) {
+    console.error("ensureUserHasOrgInternal error:", error);
     return null;
   }
-
-  const user = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .get();
-
-  return user || null;
 }
 
 /**
- * Complete onboarding by setting user type
- * This is called from the onboarding page after signup
+ * Link existing contacts with matching email to a user
+ */
+async function linkContactsToUser(db: Awaited<ReturnType<typeof getDb>>, userId: string, email: string): Promise<void> {
+  if (!db || !email) return;
+  
+  try {
+    const matchingContacts = await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.email, email.toLowerCase()))
+      .all();
+
+    for (const contact of matchingContacts) {
+      if (!contact.userId) {
+        await db
+          .update(contacts)
+          .set({ userId, updatedAt: new Date() })
+          .where(eq(contacts.id, contact.id))
+          .run();
+        console.log(`Linked contact ${contact.id} to user ${userId}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error linking contacts to user:", error);
+  }
+}
+
+// =============================================================================
+// ONBOARDING - Only updates userType
+// =============================================================================
+
+/**
+ * Complete onboarding by setting the user's type.
+ * User and org must already exist (created by ensureUserHasOrg).
  */
 export async function completeOnboarding(userType: UserType): Promise<{ success: boolean; error?: string }> {
   try {
@@ -94,23 +214,18 @@ export async function completeOnboarding(userType: UserType): Promise<{ success:
       return { success: false, error: "Database not available" };
     }
 
-    // Get the user from our database
-    let user = await db
+    // Find the user
+    const user = await db
       .select()
       .from(users)
       .where(eq(users.clerkId, clerkId))
       .get();
 
-    // If user doesn't exist, create them
     if (!user) {
-      const newUser = await getOrCreateUserFromClerk(clerkId);
-      if (!newUser) {
-        return { success: false, error: "Failed to create user" };
-      }
-      user = newUser;
+      return { success: false, error: "User not found. Please refresh and try again." };
     }
 
-    // Update user type
+    // Update userType
     await db
       .update(users)
       .set({
@@ -120,16 +235,13 @@ export async function completeOnboarding(userType: UserType): Promise<{ success:
       .where(eq(users.id, user.id))
       .run();
 
-    // Get user's email and merge contacts
-    const clerkUser = await currentUser();
-    const email = clerkUser?.emailAddresses[0]?.emailAddress;
-    if (email) {
-      await mergeContactsForUser(user.id, email);
-    }
-
+    console.log(`completeOnboarding: Set userType to ${userType} for user ${user.id}`);
+    
+    revalidatePath("/");
     return { success: true };
+
   } catch (error) {
-    console.error("Error completing onboarding:", error);
+    console.error("completeOnboarding error:", error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : "Unknown error" 
@@ -137,44 +249,106 @@ export async function completeOnboarding(userType: UserType): Promise<{ success:
   }
 }
 
-/**
- * Merge contacts with matching email to a user
- * This links existing contacts to the user so they inherit project access
- */
-async function mergeContactsForUser(userId: string, email: string): Promise<void> {
-  const db = await getDb();
-  if (!db) {
-    console.error("Database not available for contact merge");
-    return;
-  }
+// =============================================================================
+// USER QUERIES
+// =============================================================================
 
+/**
+ * Get user by Clerk ID (read-only, doesn't create)
+ */
+export async function getUserByClerkId(clerkId: string): Promise<User | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  return await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, clerkId))
+    .get() || null;
+}
+
+/**
+ * Get current user with their org role
+ */
+export async function getCurrentUserWithOrg(): Promise<{
+  user: User;
+  orgId: string;
+  orgRole: "owner" | "admin" | "member";
+} | null> {
+  const result = await ensureUserHasOrg();
+  if (!result) return null;
+
+  const db = await getDb();
+  if (!db) return null;
+
+  const membership = await db
+    .select()
+    .from(organizationMembers)
+    .where(eq(organizationMembers.userId, result.user.id))
+    .get();
+
+  return {
+    user: result.user,
+    orgId: result.orgId,
+    orgRole: (membership?.role as "owner" | "admin" | "member") || "member",
+  };
+}
+
+/**
+ * Get current user with their project access (via contacts)
+ */
+export async function getCurrentUserWithAccess(): Promise<{
+  user: User;
+  projectAccess: { projectId: string; permission: string }[];
+} | null> {
   try {
-    // Find all contacts with this email that aren't already linked to a user
-    const matchingContacts = await db
+    const { userId: clerkId } = await auth();
+    if (!clerkId) return null;
+
+    const db = await getDb();
+    if (!db) return null;
+
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.clerkId, clerkId))
+      .get();
+
+    if (!user) return null;
+
+    // Get contacts linked to this user
+    const userContacts = await db
       .select()
       .from(contacts)
-      .where(eq(contacts.email, email))
+      .where(eq(contacts.userId, user.id))
       .all();
 
-    for (const contact of matchingContacts) {
-      if (!contact.userId) {
-        // Link the contact to the user
-        await db
-          .update(contacts)
-          .set({
-            userId,
-            updatedAt: new Date(),
-          })
-          .where(eq(contacts.id, contact.id))
-          .run();
+    // Get project access through contacts
+    const projectAccess: { projectId: string; permission: string }[] = [];
 
-        console.log(`Linked contact ${contact.id} to user ${userId}`);
-      }
+    for (const contact of userContacts) {
+      const access = await db
+        .select({
+          projectId: projectContacts.projectId,
+          permission: projectContacts.permission,
+        })
+        .from(projectContacts)
+        .where(eq(projectContacts.contactId, contact.id))
+        .all();
+
+      projectAccess.push(...access);
     }
+
+    return { user, projectAccess };
   } catch (error) {
-    console.error("Error merging contacts:", error);
+    console.error("getCurrentUserWithAccess error:", error);
+    return null;
   }
 }
+
+// =============================================================================
+// USER PROFILE UPDATES
+// =============================================================================
 
 /**
  * Update user profile
@@ -214,9 +388,10 @@ export async function updateUserProfile(data: Partial<{
       .where(eq(users.id, user.id))
       .run();
 
+    revalidatePath("/settings");
     return { success: true };
   } catch (error) {
-    console.error("Error updating user profile:", error);
+    console.error("updateUserProfile error:", error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : "Unknown error" 
@@ -224,61 +399,12 @@ export async function updateUserProfile(data: Partial<{
   }
 }
 
-/**
- * Get the current user with their project access
- */
-export async function getCurrentUserWithAccess(): Promise<{
-  user: User;
-  projectAccess: { projectId: string; permission: string }[];
-} | null> {
-  try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
-      return null;
-    }
+// =============================================================================
+// LEGACY EXPORTS (for backward compatibility)
+// =============================================================================
 
-    const db = await getDb();
-    if (!db) {
-      return null;
-    }
-
-    const user = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkId))
-      .get();
-
-    if (!user) {
-      return null;
-    }
-
-    // Get all contacts linked to this user
-    const userContacts = await db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.userId, user.id))
-      .all();
-
-    // Get project access through those contacts
-    const projectAccess: { projectId: string; permission: string }[] = [];
-
-    for (const contact of userContacts) {
-      const access = await db
-        .select({
-          projectId: projectContacts.projectId,
-          permission: projectContacts.permission,
-        })
-        .from(projectContacts)
-        .where(eq(projectContacts.contactId, contact.id))
-        .all();
-
-      projectAccess.push(...access);
-    }
-
-    return { user, projectAccess };
-  } catch (error) {
-    console.error("Error getting current user with access:", error);
-    return null;
-  }
+export async function getOrCreateUserFromClerk(clerkId: string): Promise<User | null> {
+  // Just use ensureUserHasOrg and return the user
+  const result = await ensureUserHasOrg();
+  return result?.user || null;
 }
-

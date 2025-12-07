@@ -16,12 +16,11 @@ import { StatusBadge } from "@/components/projects/status-badge";
 import {
   getProject,
   getProjectPhases,
-  getProjectStats,
-  getPhaseStages
+  getProjectStats
 } from "@/lib/actions/projects";
+import { calculateProjectProgress } from "@/lib/utils/project-utils";
 import { getProjectContacts } from "@/lib/actions/contacts";
 import { createPhaseSlug } from "@/lib/utils/slug";
-import { getCostsByProject } from "@/lib/actions/costs";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -41,45 +40,8 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     getProjectStats(id),
   ]);
 
-  // Get all stages across all phases and calculate progress per phase
-  const phasesWithStages = await Promise.all(
-    phases.map(async (phase) => {
-      const phaseStages = await getPhaseStages(phase.id);
-      const total = phaseStages.length;
-      const completed = phaseStages.filter(s => s.status === "completed").length;
-      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-      return {
-        phase,
-        stages: phaseStages,
-        total,
-        completed,
-        progress,
-      };
-    })
-  );
-  const flattenedStages = phasesWithStages.flatMap(p => p.stages);
-  const totalStages = flattenedStages.length;
-  const completedStages = flattenedStages.filter(s => s.status === "completed").length;
-
-  // Find current phase and first active stage
+  const progress = calculateProjectProgress(project, phases);
   const currentPhase = phases.find((p) => p.status === "in_progress");
-  let activeStage: { id: string; phaseSlug: string } | null = null;
-  if (currentPhase) {
-    const currentPhaseStages = await getPhaseStages(currentPhase.id);
-    const firstActiveStage = currentPhaseStages.find(s => s.status === "in_progress" || s.status === "awaiting_approval");
-    if (firstActiveStage) {
-      activeStage = {
-        id: firstActiveStage.id,
-        phaseSlug: createPhaseSlug(currentPhase)
-      };
-    }
-  }
-
-  // Get all costs for the project
-  const allCosts = await getCostsByProject(id);
-  const totalQuoted = allCosts.reduce((sum, c) => sum + (c.quotedAmount ?? 0), 0);
-  const totalActual = allCosts.reduce((sum, c) => sum + (c.actualAmount ?? 0), 0);
-  const totalPaid = allCosts.reduce((sum, c) => sum + (c.paidAmount ?? 0), 0);
 
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return "—";
@@ -134,80 +96,32 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {phasesWithStages.length > 0 ? (
-                <>
-                  <div className="space-y-2">
-                    {phasesWithStages.map(({ phase, completed, total }) => (
-                      <div key={phase.id} className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{phase.name}:</span>
-                        <span className="font-medium">{completed}/{total}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-2 space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Overall</span>
-                      <span className="font-medium">
-                        {totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0}%
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-brand transition-all"
-                        style={{ 
-                          width: `${totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0}%` 
-                        }}
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-muted-foreground">
-                  No phases yet
-                </div>
-              )}
+            <div className="text-2xl font-bold">{progress}%</div>
+            <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-brand transition-all"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </CardContent>
         </Card>
 
-        {activeStage ? (
-          <Link href={`/projects/${id}/${activeStage.phaseSlug}/stages/${activeStage.id}`}>
-            <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Current Phase
-                </CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl sm:text-2xl font-bold truncate">
-                  {currentPhase?.name || "Not Started"}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {stats.completedPhases} of {stats.totalPhases} completed
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ) : (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Current Phase
-              </CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl sm:text-2xl font-bold truncate">
-                {currentPhase?.name || "Not Started"}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.completedPhases} of {stats.totalPhases} completed
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Current Phase
+            </CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold truncate">
+              {currentPhase?.name || "Not Started"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats.completedPhases} of {stats.totalPhases} completed
+            </p>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -217,20 +131,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Quoted:</span>
-                <span className="font-medium">{formatCurrency(totalQuoted)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Actual:</span>
-                <span className="font-medium">{formatCurrency(totalActual)}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Paid:</span>
-                <span className="font-medium text-green-600">{formatCurrency(totalPaid)}</span>
-              </div>
+            <div className="text-xl sm:text-2xl font-bold truncate">
+              {formatCurrency(project.budget)}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Contract: {formatCurrency(project.contractValue)}
+            </p>
           </CardContent>
         </Card>
 

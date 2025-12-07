@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search, Filter, Share2 } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,32 +14,39 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProjectGrid } from "@/components/projects/project-grid";
-import { getProjects, getProjectPhases } from "@/lib/actions/projects";
+import { getProjects, getProjectPhases, type ProjectWithAccess } from "@/lib/actions/projects";
 import { calculateProjectProgress } from "@/lib/utils/project-utils";
 import type { Project } from "@/lib/db/schema";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardGridSkeleton } from "@/components/ui/card-grid-skeleton";
-import { getActiveOrganization } from "@/lib/organizations/get-active-organization";
 import { SystemStatusBanner } from "@/components/status/system-status-banner";
 import { getSystemStatus } from "@/lib/status/system-status";
 
 interface SearchParams {
   status?: string;
   search?: string;
+  view?: string; // "all" | "owned" | "shared"
 }
 
 async function ProjectList({
   searchParams,
-  orgId,
 }: {
   searchParams: SearchParams;
-  orgId: string;
 }) {
-  const projects = await getProjects({
+  // Get all projects (owned + shared)
+  const allProjects = await getProjects({
     status: searchParams.status as Project["status"] | undefined,
     search: searchParams.search,
-    orgId,
+    includeShared: searchParams.view !== "owned",
   });
+
+  // Filter by view if specified
+  let projects = allProjects;
+  if (searchParams.view === "owned") {
+    projects = allProjects.filter(p => p.accessType === "owned");
+  } else if (searchParams.view === "shared") {
+    projects = allProjects.filter(p => p.accessType === "shared");
+  }
 
   // Get phases for each project to calculate progress
   const projectsWithProgress = await Promise.all(
@@ -46,7 +54,13 @@ async function ProjectList({
       const phases = await getProjectPhases(project.id);
       const progress = calculateProjectProgress(project, phases);
       const currentPhase = phases.find((p) => p.status === "in_progress")?.name;
-      return { project, progress, currentPhase };
+      return { 
+        project, 
+        progress, 
+        currentPhase,
+        accessType: project.accessType,
+        permission: project.permission,
+      };
     })
   );
 
@@ -56,12 +70,12 @@ async function ProjectList({
         icon={<Search className="h-8 w-8" />}
         title="No projects found"
         description={
-          searchParams.search || searchParams.status
+          searchParams.search || searchParams.status || searchParams.view
             ? "Try adjusting your search or filters"
             : "Create your first project to get started"
         }
         action={
-          !searchParams.search && !searchParams.status ? (
+          !searchParams.search && !searchParams.status && !searchParams.view ? (
             <Button asChild>
               <Link href="/projects/new">
                 <Plus className="mr-2 h-4 w-4" />
@@ -88,10 +102,12 @@ export default async function ProjectsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const [organization, systemStatus] = await Promise.all([
-    getActiveOrganization(),
-    getSystemStatus(),
-  ]);
+  const systemStatus = await getSystemStatus();
+
+  // Count projects for filter badges
+  const allProjects = await getProjects({});
+  const ownedCount = allProjects.filter(p => p.accessType === "owned").length;
+  const sharedCount = allProjects.filter(p => p.accessType === "shared").length;
 
   return (
     <div className="space-y-6">
@@ -120,6 +136,39 @@ export default async function ProjectsPage({
           />
         </form>
         
+        {/* View filter (owned/shared) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="shrink-0">
+              <Share2 className="mr-2 h-4 w-4" />
+              {params.view === "owned" ? "My Projects" : params.view === "shared" ? "Shared with Me" : "All Projects"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>View</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href={`/projects${params.status ? `?status=${params.status}` : ""}`}>
+                All Projects
+                <Badge variant="secondary" className="ml-auto">{allProjects.length}</Badge>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/projects?view=owned${params.status ? `&status=${params.status}` : ""}`}>
+                My Projects
+                <Badge variant="secondary" className="ml-auto">{ownedCount}</Badge>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/projects?view=shared${params.status ? `&status=${params.status}` : ""}`}>
+                Shared with Me
+                <Badge variant="secondary" className="ml-auto">{sharedCount}</Badge>
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Status filter */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="shrink-0">
@@ -131,22 +180,22 @@ export default async function ProjectsPage({
             <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/projects">All</Link>
+              <Link href={`/projects${params.view ? `?view=${params.view}` : ""}`}>All</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/projects?status=active">Active</Link>
+              <Link href={`/projects?status=active${params.view ? `&view=${params.view}` : ""}`}>Active</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/projects?status=draft">Draft</Link>
+              <Link href={`/projects?status=draft${params.view ? `&view=${params.view}` : ""}`}>Draft</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/projects?status=on_hold">On Hold</Link>
+              <Link href={`/projects?status=on_hold${params.view ? `&view=${params.view}` : ""}`}>On Hold</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/projects?status=completed">Completed</Link>
+              <Link href={`/projects?status=completed${params.view ? `&view=${params.view}` : ""}`}>Completed</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/projects?status=archived">Archived</Link>
+              <Link href={`/projects?status=archived${params.view ? `&view=${params.view}` : ""}`}>Archived</Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -156,7 +205,7 @@ export default async function ProjectsPage({
 
       {/* Project Grid */}
       <Suspense fallback={<ProjectListSkeleton />}>
-        <ProjectList searchParams={params} orgId={organization.id} />
+        <ProjectList searchParams={params} />
       </Suspense>
     </div>
   );

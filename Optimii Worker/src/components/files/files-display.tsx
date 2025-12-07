@@ -1,30 +1,50 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { FileText, Download, Search, Filter, Grid, List, ArrowUpDown, Eye, Trash2, FolderOpen, Upload, LayoutGrid } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { 
+  Search, 
+  Grid3x3, 
+  List, 
+  Table as TableIcon,
+  FileText,
+  Image as ImageIcon,
+  File as FileIcon,
+  Download,
+  Eye,
+  Trash2,
+  Filter,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FilePreview, FileThumbnail, getFileType } from "@/components/files";
+import { Badge } from "@/components/ui/badge";
+import { FilePreview, getFileType, FileThumbnail } from "./file-preview";
 import type { File as FileType } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 
-export type ViewMode = "table" | "grid" | "list";
-export type SortOption = "name" | "date" | "size" | "stage";
+export type ViewMode = "grid" | "list" | "table";
+export type SortOption = "name" | "date" | "type" | "stage";
 
 export interface FilesDisplayProps {
-  files: (FileType & { stageName?: string })[];
+  files: Array<FileType & { stageName?: string }>;
   stages?: Array<{ id: string; name: string }>;
   loading?: boolean;
-  // Display options
   showSearch?: boolean;
   showFilters?: boolean;
   showSort?: boolean;
@@ -33,21 +53,14 @@ export interface FilesDisplayProps {
   showDeleteButton?: boolean;
   defaultViewMode?: ViewMode;
   defaultSort?: SortOption;
-  // Callbacks
-  onFilePreview?: (file: FileType) => void;
-  onFileDownload?: (file: FileType) => void;
-  onFileDelete?: (fileId: string) => void;
-  onUploadClick?: () => void;
-  // Customization
   emptyStateTitle?: string;
   emptyStateDescription?: string;
   emptyStateAction?: React.ReactNode;
-  // Additional columns/fields for table view
-  tableColumns?: Array<{
-    key: string;
-    label: string;
-    render: (file: FileType & { stageName?: string }) => React.ReactNode;
-  }>;
+  onFileClick?: (file: FileType) => void;
+  onFilePreview?: (file: FileType) => void;
+  onFileDelete?: (fileId: string) => void;
+  onUploadClick?: () => void;
+  className?: string;
 }
 
 export function FilesDisplay({
@@ -58,67 +71,93 @@ export function FilesDisplay({
   showFilters = true,
   showSort = true,
   showViewToggle = true,
-  showUploadButton = false,
-  showDeleteButton = true,
+  showDeleteButton = false,
   defaultViewMode = "table",
   defaultSort = "date",
+  emptyStateTitle = "No files",
+  emptyStateDescription = "Upload files to get started.",
+  emptyStateAction,
+  onFileClick,
   onFilePreview,
-  onFileDownload,
   onFileDelete,
   onUploadClick,
-  emptyStateTitle = "No files yet",
-  emptyStateDescription = "Files uploaded will appear here.",
-  emptyStateAction,
-  tableColumns,
+  className,
 }: FilesDisplayProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStage, setSelectedStage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
+  const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>(defaultSort);
+  const [filterStage, setFilterStage] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
   const [previewFile, setPreviewFile] = useState<FileType | null>(null);
 
   // Filter and sort files
-  const filteredAndSortedFiles = useMemo(() => {
-    let filtered = files;
+  const filteredFiles = useMemo(() => {
+    let result = [...files];
 
-    // Filter by search query
+    // Apply search
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (file) =>
-          file.name.toLowerCase().includes(query) ||
-          file.stageName?.toLowerCase().includes(query)
+      result = result.filter((file) =>
+        file.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Filter by stage
-    if (selectedStage) {
-      filtered = filtered.filter((file) => file.stageId === selectedStage);
+    // Apply stage filter
+    if (filterStage !== "all") {
+      result = result.filter((file) => file.stageId === filterStage);
     }
 
-    // Sort
-    const sorted = [...filtered].sort((a, b) => {
+    // Apply type filter
+    if (filterType !== "all") {
+      result = result.filter((file) => {
+        const fileType = getFileType(file.name);
+        return fileType === filterType;
+      });
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name);
-        case "size":
-          return (b.size || 0) - (a.size || 0);
+        case "date":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "type":
+          return getFileType(a.name).localeCompare(getFileType(b.name));
         case "stage":
           return (a.stageName || "").localeCompare(b.stageName || "");
-        case "date":
         default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return 0;
       }
     });
 
-    return sorted;
-  }, [files, searchQuery, selectedStage, sortBy]);
+    return result;
+  }, [files, searchQuery, sortBy, filterStage, filterType]);
+
+  const handleFileAction = (file: FileType, action: "preview" | "download" | "delete") => {
+    switch (action) {
+      case "preview":
+        if (onFilePreview) {
+          onFilePreview(file);
+        } else {
+          setPreviewFile(file);
+        }
+        break;
+      case "download":
+        window.open(file.url, "_blank");
+        break;
+      case "delete":
+        if (onFileDelete) {
+          onFileDelete(file.id);
+        }
+        break;
+    }
+  };
 
   const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return "Unknown size";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (!bytes) return "—";
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    return `${(kb / 1024).toFixed(1)} MB`;
   };
 
   const formatDate = (date: Date) => {
@@ -126,362 +165,332 @@ export function FilesDisplay({
       day: "numeric",
       month: "short",
       year: "numeric",
-      hour: "numeric",
+      hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(date));
   };
 
-  const handlePreview = (file: FileType) => {
-    setPreviewFile(file);
-    onFilePreview?.(file);
-  };
-
-  const handleDownload = (file: FileType) => {
-    window.open(file.url, "_blank");
-    onFileDownload?.(file);
-  };
-
-  const handleDelete = (fileId: string) => {
-    if (confirm("Are you sure you want to delete this file?")) {
-      onFileDelete?.(fileId);
+  const getFileIcon = (fileName: string) => {
+    const type = getFileType(fileName);
+    switch (type) {
+      case "image":
+        return <ImageIcon className="h-5 w-5" />;
+      case "pdf":
+        return <FileText className="h-5 w-5" />;
+      default:
+        return <FileIcon className="h-5 w-5" />;
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 bg-muted animate-pulse rounded w-48" />
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <div className="h-4 bg-muted animate-pulse rounded w-3/4 mb-2" />
-                <div className="h-3 bg-muted animate-pulse rounded w-1/2" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      <Card className={className}>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (files.length === 0 && !searchQuery && filterStage === "all" && filterType === "all") {
+    return (
+      <Card className={cn("border-dashed", className)}>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <FileIcon className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <h3 className="font-medium text-sm mb-1">{emptyStateTitle}</h3>
+          <p className="text-xs text-muted-foreground text-center max-w-sm mb-4">
+            {emptyStateDescription}
+          </p>
+          {emptyStateAction}
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <>
-      <div className="space-y-6">
-        {/* Controls */}
-        {(showSearch || showFilters || showSort || showViewToggle || showUploadButton) && (
-          <div className="flex flex-col sm:flex-row gap-3">
-            {showSearch && (
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search files..."
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            )}
-            {showFilters && stages.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="shrink-0">
-                    <Filter className="mr-2 h-4 w-4" />
-                    {selectedStage
-                      ? stages.find((s) => s.id === selectedStage)?.name || "Filter"
-                      : "All Stages"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Filter by Stage</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSelectedStage(null)}>
-                    All Stages
-                  </DropdownMenuItem>
-                  {stages.map((stage) => (
-                    <DropdownMenuItem
-                      key={stage.id}
-                      onClick={() => setSelectedStage(stage.id)}
-                    >
-                      {stage.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {showSort && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="shrink-0">
-                    <ArrowUpDown className="mr-2 h-4 w-4" />
-                    Sort:{" "}
-                    {sortBy === "name"
-                      ? "Name"
-                      : sortBy === "size"
-                        ? "Size"
-                        : sortBy === "stage"
-                          ? "Stage"
-                          : "Date"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSortBy("date")}>
-                    Date
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("name")}>
-                    Name
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("size")}>
-                    Size
-                  </DropdownMenuItem>
-                  {stages.length > 0 && (
-                    <DropdownMenuItem onClick={() => setSortBy("stage")}>
-                      Stage
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {showViewToggle && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={viewMode === "list" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                  title="Card view"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "table" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("table")}
-                  title="Table view"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "grid" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  title="Grid view"
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            {showUploadButton && onUploadClick && (
-              <Button onClick={onUploadClick} className="shrink-0">
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Files
-              </Button>
-            )}
+    <div className={cn("space-y-4", className)}>
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Search */}
+        {showSearch && (
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search files..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
           </div>
         )}
 
-        {/* Files Display */}
-        {filteredAndSortedFiles.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <FolderOpen className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="font-medium mb-1">
-                {files.length === 0 ? emptyStateTitle : "No files match your filters"}
-              </h3>
-              <p className="text-sm text-muted-foreground text-center max-w-sm">
-                {files.length === 0
-                  ? emptyStateDescription
-                  : "Try adjusting your search or filters."}
-              </p>
-              {emptyStateAction && <div className="mt-4">{emptyStateAction}</div>}
-            </CardContent>
-          </Card>
-        ) : viewMode === "table" ? (
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-4 font-medium text-sm">Name</th>
-                  {stages.length > 0 && (
-                    <th className="text-left p-4 font-medium text-sm">Stage</th>
-                  )}
-                  <th className="text-right p-4 font-medium text-sm">Size</th>
-                  <th className="text-left p-4 font-medium text-sm">Uploaded</th>
-                  {tableColumns?.map((col) => (
-                    <th key={col.key} className="text-left p-4 font-medium text-sm">
-                      {col.label}
-                    </th>
-                  ))}
-                  <th className="text-right p-4 font-medium text-sm w-[100px]">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAndSortedFiles.map((file) => (
-                  <tr
-                    key={file.id}
-                    className="border-b hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                        <span className="font-medium">{file.name}</span>
-                      </div>
-                    </td>
-                    {stages.length > 0 && (
-                      <td className="p-4">
-                        {file.stageName ? (
-                          <Badge variant="secondary">{file.stageName}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
+        {/* Filters */}
+        {showFilters && stages.length > 0 && (
+          <Select value={filterStage} onValueChange={setFilterStage}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="All stages" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All stages</SelectItem>
+              {stages.map((stage) => (
+                <SelectItem key={stage.id} value={stage.id}>
+                  {stage.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {showFilters && (
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              <SelectItem value="pdf">PDFs</SelectItem>
+              <SelectItem value="image">Images</SelectItem>
+              <SelectItem value="document">Documents</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* Sort */}
+        {showSort && (
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Sort by date</SelectItem>
+              <SelectItem value="name">Sort by name</SelectItem>
+              <SelectItem value="type">Sort by type</SelectItem>
+              {stages.length > 0 && <SelectItem value="stage">Sort by stage</SelectItem>}
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* View Toggle */}
+        {showViewToggle && (
+          <div className="flex items-center gap-1 border rounded-lg p-1">
+            <Button
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="h-8 w-8 p-0"
+            >
+              <TableIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className="h-8 w-8 p-0"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="h-8 w-8 p-0"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Results count */}
+      {(searchQuery || filterStage !== "all" || filterType !== "all") && (
+        <div className="text-sm text-muted-foreground">
+          Found {filteredFiles.length} {filteredFiles.length === 1 ? "file" : "files"}
+          {searchQuery && ` matching "${searchQuery}"`}
+        </div>
+      )}
+
+      {/* Files Display */}
+      {filteredFiles.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileIcon className="h-12 w-12 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">No files match your filters</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Table View */}
+          {viewMode === "table" && (
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b">
+                    <tr className="text-left text-sm text-muted-foreground">
+                      <th className="py-3 px-4 font-medium">Name</th>
+                      {stages.length > 0 && <th className="py-3 px-4 font-medium">Stage</th>}
+                      <th className="py-3 px-4 font-medium">Size</th>
+                      <th className="py-3 px-4 font-medium">Uploaded</th>
+                      <th className="py-3 px-4 font-medium w-[100px]"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredFiles.map((file) => (
+                      <tr key={file.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <FileThumbnail
+                              file={file}
+                              className="w-10 h-10 shrink-0"
+                              onClick={() => onFileClick ? onFileClick(file) : handleFileAction(file, "preview")}
+                            />
+                            <div className="min-w-0">
+                              <button
+                                onClick={() => onFileClick ? onFileClick(file) : handleFileAction(file, "preview")}
+                                className="font-medium text-sm hover:text-brand truncate block max-w-full text-left"
+                              >
+                                {file.name}
+                              </button>
+                              {file.category && (
+                                <Badge variant="outline" className="text-xs mt-1">
+                                  {file.category}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        {stages.length > 0 && (
+                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                            {file.stageName || "—"}
+                          </td>
                         )}
-                      </td>
-                    )}
-                    <td className="p-4 text-right text-sm text-muted-foreground">
-                      {formatFileSize(file.size)}
-                    </td>
-                    <td className="p-4 text-sm text-muted-foreground">
-                      {formatDate(file.createdAt)}
-                    </td>
-                    {tableColumns?.map((col) => (
-                      <td key={col.key} className="p-4">
-                        {col.render(file)}
-                      </td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {formatFileSize(file.size)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {formatDate(file.createdAt)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleFileAction(file, "preview")}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Preview
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleFileAction(file, "download")}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </DropdownMenuItem>
+                              {showDeleteButton && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleFileAction(file, "delete")}
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
                     ))}
-                    <td className="p-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handlePreview(file)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleDownload(file)}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        {showDeleteButton && onFileDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleDelete(file.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {filteredAndSortedFiles.map((file) => (
-              <div key={file.id} className="group relative">
-                <FileThumbnail
-                  file={file}
-                  className="w-full"
-                  onClick={() => handlePreview(file)}
-                />
-                <div className="mt-1.5">
-                  <p className="text-xs font-medium truncate">{file.name}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {formatFileSize(file.size)}
-                  </p>
-                </div>
-                {showDeleteButton && onFileDelete && (
-                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="h-6 w-6 shadow-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(file.id);
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
-        ) : (
-          // List view
-          <div className="space-y-2">
-            {filteredAndSortedFiles.map((file) => {
-              const fileType = getFileType(file.type, file.name);
-              return (
+            </Card>
+          )}
+
+          {/* Grid View */}
+          {viewMode === "grid" && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredFiles.map((file) => (
                 <Card
                   key={file.id}
                   className="group hover:border-brand/50 transition-colors cursor-pointer"
-                  onClick={() => handlePreview(file)}
+                  onClick={() => onFileClick ? onFileClick(file) : handleFileAction(file, "preview")}
                 >
-                  <CardContent className="flex items-center gap-4 py-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded bg-muted shrink-0 overflow-hidden">
-                      {fileType === "image" ? (
-                        <img
-                          src={file.url}
-                          alt={file.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : fileType === "pdf" ? (
-                        <FileText className="h-5 w-5 text-red-500" />
-                      ) : (
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
+                  <CardContent className="p-4">
+                    <FileThumbnail
+                      file={file}
+                      className="w-full mb-3"
+                      onClick={() => onFileClick ? onFileClick(file) : handleFileAction(file, "preview")}
+                    />
+                    <p className="text-sm font-medium truncate mb-1">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                    {file.stageName && (
+                      <Badge variant="outline" className="text-xs mt-2">
+                        {file.stageName}
+                      </Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* List View */}
+          {viewMode === "list" && (
+            <div className="space-y-2">
+              {filteredFiles.map((file) => (
+                <Card key={file.id} className="hover:border-brand/50 transition-colors">
+                  <CardContent className="flex items-center gap-4 py-3 px-4">
+                    <FileThumbnail
+                      file={file}
+                      className="w-12 h-12 shrink-0"
+                      onClick={() => onFileClick ? onFileClick(file) : handleFileAction(file, "preview")}
+                    />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <button
+                        onClick={() => onFileClick ? onFileClick(file) : handleFileAction(file, "preview")}
+                        className="font-medium text-sm hover:text-brand truncate block max-w-full text-left"
+                      >
+                        {file.name}
+                      </button>
+                      <p className="text-xs text-muted-foreground">
                         {formatFileSize(file.size)} • {formatDate(file.createdAt)}
+                        {file.stageName && ` • ${file.stageName}`}
                       </p>
                     </div>
-                    {file.stageName && (
-                      <Badge variant="secondary">{file.stageName}</Badge>
-                    )}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handlePreview(file);
+                          handleFileAction(file, "preview");
                         }}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDownload(file);
+                          handleFileAction(file, "download");
                         }}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      {showDeleteButton && onFileDelete && (
+                      {showDeleteButton && (
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDelete(file.id);
+                            handleFileAction(file, "delete");
                           }}
+                          className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -489,13 +498,13 @@ export function FilesDisplay({
                     </div>
                   </CardContent>
                 </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
-      {/* File Preview */}
+      {/* File Preview Dialog */}
       {previewFile && (
         <FilePreview
           file={previewFile}
@@ -503,8 +512,6 @@ export function FilesDisplay({
           onOpenChange={(open) => !open && setPreviewFile(null)}
         />
       )}
-    </>
+    </div>
   );
 }
-
-

@@ -1,37 +1,35 @@
 /**
  * Utility to access Cloudflare environment bindings in Next.js API routes
- * 
- * In OpenNext Cloudflare, bindings are available through the Cloudflare context
- * which is stored in AsyncLocalStorage and accessed via a Symbol.
+ * Uses the official OpenNext getCloudflareContext method
  */
 
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { R2Bucket } from "@/lib/storage/r2-types";
+import type { D1Database } from "@/lib/db";
 
-export function getCloudflareEnv(): { R2_BUCKET?: R2Bucket; DB?: unknown; [key: string]: unknown } | null {
+// Our custom bindings that extend the base CloudflareEnv
+interface CustomCloudflareEnv {
+  DB?: D1Database;
+  R2_BUCKET?: R2Bucket;
+  [key: string]: unknown;
+}
+
+export async function getCloudflareEnv(): Promise<CustomCloudflareEnv | null> {
   try {
-    // Access Cloudflare context via Symbol (OpenNext pattern)
-    const cloudflareContextSymbol = Symbol.for("__cloudflare-context__");
-    const contextGetter = (globalThis as Record<symbol, unknown>)[cloudflareContextSymbol];
-    
-    // The context getter might be a function or a direct value
-    const cloudflareContext = typeof contextGetter === "function" 
-      ? contextGetter() 
-      : contextGetter;
-    
-    return cloudflareContext?.env || null;
+    const { env } = await getCloudflareContext({ async: true });
+    return (env as CustomCloudflareEnv) || null;
   } catch (error) {
     console.warn("Could not access Cloudflare context:", error);
     return null;
   }
 }
 
-export function getR2Bucket(): R2Bucket | null {
-  const env = getCloudflareEnv();
+export async function getR2Bucket(): Promise<R2Bucket | null> {
+  const env = await getCloudflareEnv();
   return env?.R2_BUCKET || null;
 }
 
-export function getD1Database(): unknown | null {
-  const env = getCloudflareEnv();
+export async function getD1Database(): Promise<D1Database | null> {
+  const env = await getCloudflareEnv();
   return env?.DB || null;
 }
-
