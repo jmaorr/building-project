@@ -37,6 +37,8 @@ import { Badge } from "@/components/ui/badge";
 import { FilePreview, getFileType, FileThumbnail } from "./file-preview";
 import type { File as FileType } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
+import { SkeletonWrapper } from "@/components/ui/skeleton-wrapper";
+import { TableSkeleton, CardSkeleton, ListSkeleton } from "@/components/ui/skeletons";
 
 export type ViewMode = "grid" | "list" | "table";
 export type SortOption = "name" | "date" | "type" | "stage";

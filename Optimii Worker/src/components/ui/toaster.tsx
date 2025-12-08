@@ -18,15 +18,10 @@ export function Toaster() {
 
     return (
         <ToastProvider>
-            {toasts.map(function ({ id, title, description, action, variant, ...props }: {
-                id: string
-                title?: React.ReactNode
-                description?: React.ReactNode
-                action?: ToastActionElement
-                variant?: "default" | "destructive" | "success"
-            } & ToastProps) {
+            {toasts.map(function (toast) {
+                const { id, title, description, action, variant, ...props } = toast;
                 return (
-                    <Toast key={id} variant={variant} {...props}>
+                    <Toast key={id} variant={variant || undefined} {...props}>
                         <div className="grid gap-1">
                             <div className="flex items-center gap-2">
                                 {variant === "success" && (
