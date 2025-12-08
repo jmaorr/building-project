@@ -23,6 +23,8 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { StatusBadge } from "@/components/projects/status-badge";
+import type { ProjectWithAccess } from "@/lib/actions/projects";
 
 interface CommandPaletteProps {
   /** Open state controlled externally */
@@ -33,11 +35,26 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [internalOpen, setInternalOpen] = React.useState(false);
+  const [projects, setProjects] = React.useState<ProjectWithAccess[]>([]);
   const router = useRouter();
   const { setTheme } = useTheme();
 
   const isOpen = open ?? internalOpen;
   const setIsOpen = onOpenChange ?? setInternalOpen;
+
+  // Load projects when palette opens
+  React.useEffect(() => {
+    if (isOpen) {
+      fetch("/api/projects")
+        .then((res) => res.json())
+        .then(setProjects)
+        .catch(console.error);
+    }
+  }, [isOpen]);
+
+  // cmdk will handle filtering based on the value prop of CommandItems
+  // We show all projects and let cmdk filter them
+  const displayedProjects = projects;
 
   // Handle keyboard shortcut
   React.useEffect(() => {
@@ -65,6 +82,35 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+
+        {/* Projects Search Results */}
+        {filteredProjects.length > 0 && (
+          <>
+            <CommandGroup heading="Projects">
+              {filteredProjects.map((project) => (
+                <CommandItem
+                  key={project.id}
+                  value={`${project.name} ${project.address || ""} ${project.description || ""}`}
+                  onSelect={() => runCommand(() => router.push(`/projects/${project.id}`))}
+                >
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate">{project.name}</span>
+                      <StatusBadge status={project.status} type="project" />
+                    </div>
+                    {project.address && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {project.address}
+                      </p>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
 
         {/* Navigation */}
         <CommandGroup heading="Navigation">

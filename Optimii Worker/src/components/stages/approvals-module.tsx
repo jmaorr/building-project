@@ -134,6 +134,7 @@ export function ApprovalsStage({ stageId, stageName, projectId, currentRound }: 
       toast({
         title: "Success",
         description: "Approval requested successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to request approval:", error);
@@ -156,6 +157,7 @@ export function ApprovalsStage({ stageId, stageName, projectId, currentRound }: 
       toast({
         title: "Success",
         description: "Request approved.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to approve:", error);
@@ -177,6 +179,7 @@ export function ApprovalsStage({ stageId, stageName, projectId, currentRound }: 
       toast({
         title: "Success",
         description: "Request rejected.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to reject:", error);

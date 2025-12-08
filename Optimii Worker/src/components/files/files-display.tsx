@@ -184,11 +184,21 @@ export function FilesDisplay({
 
   if (loading) {
     return (
-      <Card className={className}>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
+      <SkeletonWrapper 
+        isLoading={true} 
+        skeleton={
+          viewMode === "table" ? (
+            <TableSkeleton count={5} />
+          ) : viewMode === "grid" ? (
+            <CardSkeleton count={6} />
+          ) : (
+            <ListSkeleton count={5} />
+          )
+        }
+        className={className}
+      >
+        <div />
+      </SkeletonWrapper>
     );
   }
 

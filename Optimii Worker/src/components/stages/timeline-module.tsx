@@ -107,6 +107,7 @@ export function TimelineStage({ stageId, stageName, projectId }: TimelineStagePr
       toast({
         title: "Success",
         description: "Event created successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to create event:", error);
@@ -131,6 +132,7 @@ export function TimelineStage({ stageId, stageName, projectId }: TimelineStagePr
       toast({
         title: "Success",
         description: "Event deleted successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to delete event:", error);

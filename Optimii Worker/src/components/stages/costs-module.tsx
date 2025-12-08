@@ -110,6 +110,7 @@ export function CostsStage({ stageId, stageName, projectId }: CostsStageProps) {
       toast({
         title: "Success",
         description: "Cost item created successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to create cost:", error);
@@ -134,6 +135,7 @@ export function CostsStage({ stageId, stageName, projectId }: CostsStageProps) {
       toast({
         title: "Success",
         description: "Cost item deleted successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to delete cost:", error);

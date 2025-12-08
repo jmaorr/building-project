@@ -110,11 +110,13 @@ export function ProjectShare({ projectId, children }: ProjectShareProps) {
                     toast({
                         title: "Invitation sent",
                         description: `An email has been sent to ${email}. They'll get access when they sign up.`,
+                        variant: "success",
                     });
                 } else {
                     toast({
                         title: "Project shared",
                         description: `${email} now has ${permission} access to this project.`,
+                        variant: "success",
                     });
                 }
                 setEmail("");
@@ -144,7 +146,7 @@ export function ProjectShare({ projectId, children }: ProjectShareProps) {
         try {
             const result = await removeProjectShare(confirmRemove.id);
             if (result.success) {
-                toast({ title: "Access removed" });
+                toast({ title: "Access removed", variant: "success" });
                 await loadShares();
             } else {
                 toast({

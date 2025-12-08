@@ -4,7 +4,6 @@ import { getProject, getProjectPhases, getPhaseStages } from "@/lib/actions/proj
 import { getStagesApprovalStatuses } from "@/lib/actions/approvals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/projects/status-badge";
 import { AddStageDialog } from "@/components/stages";
 import { resolvePhaseFromSlug } from "@/lib/utils/slug";
@@ -12,10 +11,9 @@ import {
   ChevronRight, 
   Layers, 
   Plus, 
-  TrendingUp, 
+  TrendingUp,
   Clock,
-  CheckCircle2,
-  XCircle
+  CheckCircle2
 } from "lucide-react";
 
 interface PhaseDashboardPageProps {
@@ -166,8 +164,6 @@ export default async function PhaseDashboardPage({ params }: PhaseDashboardPageP
         ) : (
           <div className="space-y-2.5">
             {stages.map((stage, index) => {
-              const approvalStatus = stage.requiresApproval ? approvalStatuses[stage.id] : null;
-              
               return (
                 <Link 
                   key={stage.id} 
@@ -186,11 +182,6 @@ export default async function PhaseDashboardPage({ params }: PhaseDashboardPageP
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-sm font-medium truncate">{stage.name}</h3>
                           <StatusBadge status={stage.status} type="stage" />
-                          
-                          {/* Approval Status Badge */}
-                          {stage.requiresApproval && approvalStatus && (
-                            <ApprovalStatusBadge status={approvalStatus.status} />
-                          )}
                         </div>
                         
                         {/* Meta info */}
@@ -219,38 +210,3 @@ export default async function PhaseDashboardPage({ params }: PhaseDashboardPageP
   );
 }
 
-// =============================================================================
-// Approval Status Badge Component
-// Only shows badge when an approval has been requested (not for "none" state)
-// =============================================================================
-
-function ApprovalStatusBadge({ status }: { status: "none" | "pending" | "approved" | "rejected" }) {
-  switch (status) {
-    case "approved":
-      return (
-        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30 text-[10px] px-1.5 py-0 h-5">
-          <CheckCircle2 className="h-3 w-3 mr-1" />
-          Approved
-        </Badge>
-      );
-    case "pending":
-      return (
-        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px] px-1.5 py-0 h-5">
-          <Clock className="h-3 w-3 mr-1" />
-          Awaiting Approval
-        </Badge>
-      );
-    case "rejected":
-      return (
-        <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30 text-[10px] px-1.5 py-0 h-5">
-          <XCircle className="h-3 w-3 mr-1" />
-          Changes Requested
-        </Badge>
-      );
-    case "none":
-      // Don't show badge when no approval has been requested yet
-      return null;
-    default:
-      return null;
-  }
-}

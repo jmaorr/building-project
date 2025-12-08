@@ -69,6 +69,7 @@ export function NotesStage({ stageId, stageName, projectId }: NotesStageProps) {
       toast({
         title: "Success",
         description: "Note added successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to create note:", error);
@@ -93,6 +94,7 @@ export function NotesStage({ stageId, stageName, projectId }: NotesStageProps) {
       toast({
         title: "Success",
         description: "Note deleted successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to delete note:", error);

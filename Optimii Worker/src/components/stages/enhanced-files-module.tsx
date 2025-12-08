@@ -35,6 +35,8 @@ import { getApprovalsByStage, requestApproval, approveApproval, rejectApproval, 
 import { updateStageStatus, startNewRound } from "@/lib/actions/projects";
 import { getProjectContacts } from "@/lib/actions/contacts";
 import { useUser } from "@clerk/nextjs";
+import { cn } from "@/lib/utils";
+import { SkeletonWrapper } from "@/components/ui/skeleton-wrapper";
 
 interface EnhancedFilesStageProps {
   stage: Stage;
@@ -63,6 +65,7 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   const [statusChangeMessage, setStatusChangeMessage] = useState<string | null>(null);
   const [isAddCostDialogOpen, setIsAddCostDialogOpen] = useState(false);
   const [isCreatingRound, setIsCreatingRound] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user: clerkUser } = useUser();
 
@@ -106,6 +109,7 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   }, [projectId]);
 
   const loadData = useCallback(async () => {
+    setIsLoading(true);
     try {
       const [filesData, commentsData, approvalsData, costsData] = await Promise.all([
         getFilesByStage(stage.id, currentRound),
@@ -125,6 +129,8 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
       setApprovals([]);
       setCosts([]);
     } finally {
+      // Small delay to ensure smooth transition
+      setTimeout(() => setIsLoading(false), 100);
     }
   }, [stage.id, currentRound]);
 
@@ -135,6 +141,11 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
   useEffect(() => {
     loadContacts();
   }, [loadContacts]);
+
+  // Reset loading state when stage changes
+  useEffect(() => {
+    setIsLoading(true);
+  }, [stage.id]);
 
   // Initialize currentRound from stage on mount
   useEffect(() => {
@@ -341,8 +352,9 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
       approvalStatus.approval.assignedTo === currentUser.clerkId);
 
   return (
-    <div className="space-y-4">
-      {/* Status Change Message */}
+    <SkeletonWrapper isLoading={isLoading} staggerDelay={100} className="space-y-4">
+      <div className="space-y-4">
+        {/* Status Change Message */}
       {statusChangeMessage && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -404,14 +416,16 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
 
       {/* Approval Section */}
       {stage.requiresApproval && (
-        <ApprovalCard
-          status={approvalStatus}
-          canRespond={canRespondToApproval || true}
-          onRequestApproval={() => setIsRequestApprovalDialogOpen(true)}
-          onApprove={(approval) => openApprovalResponse(approval, "approve")}
-          onReject={(approval) => openApprovalResponse(approval, "reject")}
-          formatDate={formatDate}
-        />
+        <div>
+          <ApprovalCard
+            status={approvalStatus}
+            canRespond={canRespondToApproval || true}
+            onRequestApproval={() => setIsRequestApprovalDialogOpen(true)}
+            onApprove={(approval) => openApprovalResponse(approval, "approve")}
+            onReject={(approval) => openApprovalResponse(approval, "reject")}
+            formatDate={formatDate}
+          />
+        </div>
       )}
 
       {/* Costs Section - Only shown when costs exist */}
@@ -435,16 +449,18 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
 
       {/* Rounds Selector - Only affects Files and Comments */}
       {stage.allowsRounds && (
-        <RoundsSelector
-          stage={stage}
-          currentRound={currentRound}
-          onRoundChange={(round) => {
-            setCurrentRound(round);
-            // Data will reload via useEffect when currentRound changes
-          }}
-          onNewRound={handleNewRound}
-          onRoundDeleted={handleRoundDeleted}
-        />
+        <div>
+          <RoundsSelector
+            stage={stage}
+            currentRound={currentRound}
+            onRoundChange={(round) => {
+              setCurrentRound(round);
+              // Data will reload via useEffect when currentRound changes
+            }}
+            onNewRound={handleNewRound}
+            onRoundDeleted={handleRoundDeleted}
+          />
+        </div>
       )}
 
       {/* Files Section - Round-specific */}
@@ -619,7 +635,8 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
           />
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </SkeletonWrapper>
   );
 }
 

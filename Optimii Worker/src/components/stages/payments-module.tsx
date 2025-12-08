@@ -118,6 +118,7 @@ export function PaymentsStage({ stageId, stageName, projectId }: PaymentsStagePr
       toast({
         title: "Success",
         description: "Payment created successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to create payment:", error);
@@ -142,6 +143,7 @@ export function PaymentsStage({ stageId, stageName, projectId }: PaymentsStagePr
       toast({
         title: "Success",
         description: "Payment deleted successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to delete payment:", error);
@@ -163,6 +165,7 @@ export function PaymentsStage({ stageId, stageName, projectId }: PaymentsStagePr
       toast({
         title: "Success",
         description: "Payment marked as paid.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to update payment:", error);

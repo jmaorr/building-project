@@ -11,7 +11,8 @@ import {
   FileText,
   Image as ImageIcon,
   File,
-  Loader2
+  Loader2,
+  X as XIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,8 +62,11 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
   useEffect(() => {
     if (!pdfWorkerInitialized && typeof window !== "undefined") {
       import("react-pdf").then((pdfModule) => {
-        pdfModule.pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfModule.pdfjs.version}/build/pdf.worker.min.mjs`;
+        const workerSrc = `https://unpkg.com/pdfjs-dist@${pdfModule.pdfjs.version}/build/pdf.worker.min.mjs`;
+        pdfModule.pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
         pdfWorkerInitialized = true;
+      }).catch((err) => {
+        console.error("Failed to initialize PDF.js worker:", err);
       });
     }
   }, []);
@@ -96,12 +100,19 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] h-[90vh] p-0 gap-0 flex flex-col">
-        <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0 gap-4">
-          <DialogTitle className="text-sm font-medium truncate flex-1">
+        <DialogContent 
+          className="max-w-4xl w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" 
+          showCloseButton={false}
+          aria-describedby="file-preview-description"
+        >
+          <span id="file-preview-description" className="sr-only">
+            Preview of {file.name}
+          </span>
+        <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0 gap-4 pr-12">
+          <DialogTitle className="text-sm font-medium truncate flex-1 min-w-0">
             {file.name}
           </DialogTitle>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {fileType === "pdf" && (
               <>
                 <Button
@@ -137,8 +148,18 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
               size="icon"
               className="h-8 w-8"
               onClick={handleDownload}
+              title="Download"
             >
               <Download className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onOpenChange(false)}
+              title="Close"
+            >
+              <XIcon className="h-4 w-4" />
             </Button>
           </div>
         </DialogHeader>
@@ -159,13 +180,30 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
           )}
 
           {fileType === "pdf" && !error && (
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center w-full">
               <Document
-                file={file.url}
+                file={`/api/files/proxy?url=${encodeURIComponent(file.url)}`}
                 onLoadSuccess={onDocumentLoadSuccess}
-                onLoadError={onDocumentLoadError}
+                onLoadError={(error) => {
+                  console.error("PDF Document load error:", error);
+                  onDocumentLoadError(error);
+                }}
                 loading={null}
                 className="flex justify-center"
+                error={
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground p-8">
+                    <FileText className="h-12 w-12" />
+                    <span className="text-sm">Failed to load PDF. Please try downloading the file.</span>
+                    <Button onClick={handleDownload} size="sm" className="mt-2">
+                      <Download className="mr-2 h-4 w-4" />
+                      Download PDF
+                    </Button>
+                  </div>
+                }
+                options={{
+                  httpHeaders: {},
+                  withCredentials: false,
+                }}
               >
                 <Page
                   pageNumber={pageNumber}
@@ -174,6 +212,10 @@ export function FilePreview({ file, open, onOpenChange }: FilePreviewProps) {
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                   className="shadow-lg"
+                  onRenderError={(error) => {
+                    console.error("PDF Page render error:", error);
+                    setError("Failed to render PDF page");
+                  }}
                 />
               </Document>
             </div>
@@ -270,7 +312,89 @@ interface FileThumbnailProps {
 export function FileThumbnail({ file, className, onClick }: FileThumbnailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [pdfThumbnail, setPdfThumbnail] = useState<string | null>(null);
   const fileType = getFileType(file.type, file.name);
+
+  // Generate PDF thumbnail
+  useEffect(() => {
+    if (fileType === "pdf" && typeof window !== "undefined") {
+      let cancelled = false;
+      
+      const generatePdfThumbnail = async () => {
+        try {
+          setLoading(true);
+          setError(false);
+          
+          // Initialize PDF.js worker if not already done
+          const pdfModule = await import("react-pdf");
+          if (!pdfWorkerInitialized) {
+            const workerSrc = `https://unpkg.com/pdfjs-dist@${pdfModule.pdfjs.version}/build/pdf.worker.min.mjs`;
+            pdfModule.pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+            pdfWorkerInitialized = true;
+          }
+
+          const { pdfjs } = pdfModule;
+          
+          // Use proxy API to avoid CORS issues
+          const proxyUrl = `/api/files/proxy?url=${encodeURIComponent(file.url)}`;
+          
+          // Load PDF document with options for CORS
+          const loadingTask = pdfjs.getDocument({
+            url: proxyUrl,
+            httpHeaders: {},
+            withCredentials: false,
+          });
+          
+          const pdf = await loadingTask.promise;
+          
+          if (cancelled) return;
+          
+          const page = await pdf.getPage(1);
+          
+          // Render first page at thumbnail size
+          const viewport = page.getViewport({ scale: 0.3 });
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          
+          if (!context) {
+            throw new Error("Could not get canvas context");
+          }
+
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport,
+            canvas: canvas,
+          };
+
+          await page.render(renderContext).promise;
+
+          if (cancelled) return;
+
+          // Convert canvas to data URL
+          const thumbnailUrl = canvas.toDataURL("image/png");
+          setPdfThumbnail(thumbnailUrl);
+          setLoading(false);
+        } catch (err) {
+          console.error("Failed to generate PDF thumbnail:", err);
+          if (!cancelled) {
+            setError(true);
+            setLoading(false);
+          }
+        }
+      };
+
+      generatePdfThumbnail();
+      
+      return () => {
+        cancelled = true;
+      };
+    } else {
+      setLoading(false);
+    }
+  }, [file.url, fileType]);
 
   const getFileIcon = () => {
     switch (fileType) {
@@ -314,20 +438,43 @@ export function FileThumbnail({ file, className, onClick }: FileThumbnailProps) 
     );
   }
 
-  // PDF thumbnail - show icon instead of preview for better performance
+  // PDF thumbnail with preview
   if (fileType === "pdf") {
     return (
       <div 
         className={cn(
-          "relative aspect-square bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/30 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-brand/50 transition-all flex items-center justify-center",
+          "relative aspect-square bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/30 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-brand/50 transition-all",
           className
         )}
         onClick={onClick}
       >
-        <FileText className="h-8 w-8 text-red-500" />
-        <div className="absolute bottom-1 right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
-          PDF
-        </div>
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted z-10">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {pdfThumbnail && !error ? (
+          <>
+            <img
+              src={pdfThumbnail}
+              alt={`${file.name} preview`}
+              className={cn(
+                "w-full h-full object-cover transition-opacity",
+                loading ? "opacity-0" : "opacity-100"
+              )}
+            />
+            <div className="absolute bottom-1 right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
+              PDF
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <FileText className="h-8 w-8 text-red-500" />
+            <div className="absolute bottom-1 right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
+              PDF
+            </div>
+          </div>
+        )}
       </div>
     );
   }

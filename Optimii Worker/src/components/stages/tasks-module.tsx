@@ -99,6 +99,7 @@ export function TasksStage({ stageId, stageName }: TasksStageProps) {
       toast({
         title: "Success",
         description: "Task created successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to create task:", error);
@@ -142,6 +143,7 @@ export function TasksStage({ stageId, stageName }: TasksStageProps) {
       toast({
         title: "Success",
         description: "Task deleted successfully.",
+        variant: "success",
       });
     } catch (error) {
       console.error("Failed to delete task:", error);

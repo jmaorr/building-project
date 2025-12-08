@@ -18,7 +18,7 @@ import { getProjects, getProjectPhases, type ProjectWithAccess } from "@/lib/act
 import { calculateProjectProgress } from "@/lib/utils/project-utils";
 import type { Project } from "@/lib/db/schema";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CardGridSkeleton } from "@/components/ui/card-grid-skeleton";
+import { CardSkeleton } from "@/components/ui/skeletons";
 import { SystemStatusBanner } from "@/components/status/system-status-banner";
 import { getSystemStatus } from "@/lib/status/system-status";
 
@@ -93,7 +93,7 @@ async function ProjectList({
 }
 
 function ProjectListSkeleton() {
-  return <CardGridSkeleton />;
+  return <CardSkeleton count={6} />;
 }
 
 export default async function ProjectsPage({

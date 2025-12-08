@@ -6,6 +6,8 @@ import { Activity, FileUp, MessageSquare, CheckCircle2, RefreshCw, Clock, Filter
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SkeletonWrapper } from "@/components/ui/skeleton-wrapper";
+import { ListSkeleton } from "@/components/ui/skeletons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -201,26 +203,9 @@ export default function ActivityPage() {
     return description;
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="h-8 bg-muted animate-pulse rounded w-48" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Card key={i}>
-              <CardContent className="pt-6">
-                <div className="h-4 bg-muted animate-pulse rounded w-3/4 mb-2" />
-                <div className="h-3 bg-muted animate-pulse rounded w-1/2" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <SkeletonWrapper isLoading={loading} skeleton={<ListSkeleton count={5} />}>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
@@ -361,6 +346,7 @@ export default function ActivityPage() {
             ))}
         </div>
       )}
-    </div>
+      </div>
+    </SkeletonWrapper>
   );
 }

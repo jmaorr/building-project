@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { AppShell } from "@/components/layout";
 import { CommandPalette } from "@/components/command-palette";
 import { ensureUserHasOrg } from "@/lib/actions/users";
+import { KeyboardShortcutsProvider } from "@/components/providers/keyboard-shortcuts-provider";
 
 /**
  * Dashboard Layout
@@ -46,9 +47,11 @@ export default async function DashboardLayout({
 
   // 3. User is fully set up - render dashboard
   return (
-    <AppShell>
-      {children}
-      <CommandPalette />
-    </AppShell>
+    <KeyboardShortcutsProvider>
+      <AppShell>
+        {children}
+        <CommandPalette />
+      </AppShell>
+    </KeyboardShortcutsProvider>
   );
 }
