@@ -19,6 +19,7 @@ import { calculateProjectProgress } from "@/lib/utils/project-utils";
 import type { Project } from "@/lib/db/schema";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardSkeleton } from "@/components/ui/skeletons";
+import { SuspenseFallback } from "@/components/ui/suspense-fallback";
 import { SystemStatusBanner } from "@/components/status/system-status-banner";
 import { getSystemStatus } from "@/lib/status/system-status";
 
@@ -93,7 +94,7 @@ async function ProjectList({
 }
 
 function ProjectListSkeleton() {
-  return <CardSkeleton count={6} />;
+  return <SuspenseFallback type="card" count={6} />;
 }
 
 export default async function ProjectsPage({

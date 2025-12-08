@@ -84,10 +84,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandEmpty>No results found.</CommandEmpty>
 
         {/* Projects Search Results */}
-        {filteredProjects.length > 0 && (
+        {displayedProjects.length > 0 && (
           <>
             <CommandGroup heading="Projects">
-              {filteredProjects.map((project) => (
+              {displayedProjects.map((project) => (
                 <CommandItem
                   key={project.id}
                   value={`${project.name} ${project.address || ""} ${project.description || ""}`}

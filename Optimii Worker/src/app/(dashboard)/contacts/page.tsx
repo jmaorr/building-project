@@ -11,7 +11,7 @@ import { getActiveOrganization } from "@/lib/organizations/get-active-organizati
 import { getSystemStatus } from "@/lib/status/system-status";
 import { SystemStatusBanner } from "@/components/status/system-status-banner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { CardGridSkeleton } from "@/components/ui/card-grid-skeleton";
+import { SuspenseFallback } from "@/components/ui/suspense-fallback";
 
 interface SearchParams {
   search?: string;
@@ -102,7 +102,7 @@ async function ContactList({
 }
 
 function ContactListSkeleton() {
-  return <CardGridSkeleton heightClassName="h-36" />;
+  return <SuspenseFallback type="card" count={6} />;
 }
 
 export default async function ContactsPage({

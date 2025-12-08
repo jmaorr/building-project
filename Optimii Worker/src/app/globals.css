@@ -206,11 +206,50 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    overflow-x: hidden;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    min-height: 100vh;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Ensure all containers respect viewport width */
+  #__next,
+  [data-nextjs-scroll-focus-boundary] {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Prevent any element from exceeding viewport width */
+  img, video, iframe, embed, object {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Ensure tables can scroll horizontally if needed */
+  table {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Prevent pre/code from causing overflow */
+  pre, code {
+    max-width: 100%;
+    overflow-x: auto;
+    word-wrap: break-word;
   }
 
   /* Typography utilities */

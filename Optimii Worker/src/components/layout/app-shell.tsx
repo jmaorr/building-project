@@ -20,7 +20,7 @@ export function AppShell({ children, className }: AppShellProps) {
   const brand = useBrandConfig();
 
   return (
-    <div className="relative flex min-h-screen bg-background">
+    <div className="relative flex min-h-screen bg-background w-full max-w-full overflow-x-hidden">
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <div className="fixed inset-y-0 left-0 z-30">
@@ -32,17 +32,17 @@ export function AppShell({ children, className }: AppShellProps) {
       </div>
 
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40">
-        <header className="flex h-14 items-center gap-3 border-b border-border bg-background px-4">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 w-full max-w-full">
+        <header className="flex h-14 items-center gap-3 border-b border-border bg-background px-4 w-full max-w-full">
           <MobileSidebar />
           
           {/* Brand name - truncated */}
-          <span className="font-semibold text-foreground truncate flex-1">
+          <span className="font-semibold text-foreground truncate flex-1 min-w-0">
             {brand.orgName}
           </span>
           
           {/* Actions */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <Button variant="ghost" size="icon" className="h-9 w-9">
               <Bell className="h-4 w-4" />
               <span className="sr-only">Notifications</span>
@@ -72,12 +72,12 @@ export function AppShell({ children, className }: AppShellProps) {
       {/* Main content area */}
       <div
         className={cn(
-          "flex flex-1 flex-col transition-all duration-200",
+          "flex flex-1 flex-col transition-all duration-200 w-full max-w-full min-w-0",
           sidebarCollapsed ? "lg:pl-16" : "lg:pl-60",
           "pt-14 lg:pt-0" // Mobile header offset
         )}
       >
-        <main className={cn("flex-1 p-4 lg:p-6", className)}>
+        <main className={cn("flex-1 p-4 lg:p-6 w-full max-w-full min-w-0", className)}>
           {children}
         </main>
       </div>

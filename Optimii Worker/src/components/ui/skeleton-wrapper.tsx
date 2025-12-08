@@ -70,16 +70,17 @@ export function SkeletonWrapper({
       >
         {React.Children.map(React.Children.toArray(children), (child, index) => {
           if (React.isValidElement(child)) {
+            const props = child.props as { className?: string; style?: React.CSSProperties };
             return React.cloneElement(child, {
               className: cn(
                 "transition-all duration-1000 ease-out",
                 isLoading
                   ? "opacity-0 blur-sm translate-y-2"
                   : "opacity-100 blur-0 translate-y-0",
-                child.props.className
+                props.className
               ),
               style: {
-                ...child.props.style,
+                ...props.style,
                 transitionDelay: isLoading ? "0ms" : `${index * staggerDelay}ms`,
               },
             } as React.HTMLAttributes<HTMLElement>);
