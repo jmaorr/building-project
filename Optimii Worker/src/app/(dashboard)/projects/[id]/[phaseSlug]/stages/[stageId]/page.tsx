@@ -130,9 +130,11 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Desktop actions */}
-          <Button variant="outline" size="sm" className="hidden sm:flex">
-            <Settings className="mr-2 h-4 w-4" />
-            Configure
+          <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+            <Link href={`/projects/${id}/${phaseSlug}/stages/${stageId}/configure`}>
+              <Settings className="mr-2 h-4 w-4" />
+              Configure
+            </Link>
           </Button>
 
           {/* Mobile menu */}
@@ -144,13 +146,11 @@ export default async function StageDetailPage({ params }: StageDetailPageProps) 
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                Configure Stage
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                Delete Stage
+              <DropdownMenuItem asChild>
+                <Link href={`/projects/${id}/${phaseSlug}/stages/${stageId}/configure`}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configure Stage
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

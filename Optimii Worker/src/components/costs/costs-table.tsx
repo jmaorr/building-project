@@ -167,8 +167,10 @@ export function CostsTable({
   if (viewMode === "card") {
     return (
       <>
-        <div className="space-y-3">
-          {costs.map((cost) => {
+        <Card className="overflow-hidden py-0">
+          <CardContent className="p-0">
+            <div className="space-y-3 p-4 sm:p-6">
+              {costs.map((cost) => {
             const isEditing = editingId === cost.id;
             const hasFiles = cost.files && cost.files.length > 0;
             
@@ -337,7 +339,9 @@ export function CostsTable({
               </Card>
             );
           })}
-        </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {selectedCostId && (
           <CostFilesDialog
@@ -359,8 +363,10 @@ export function CostsTable({
   // Table view for desktop
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <Card className="overflow-hidden py-0">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="text-left p-4 font-medium text-sm">Name & Description</th>
@@ -368,7 +374,7 @@ export function CostsTable({
               <th className="text-right p-4 font-medium text-sm">Actual</th>
               <th className="text-right p-4 font-medium text-sm">Paid</th>
               <th className="text-center p-4 font-medium text-sm">Files</th>
-              <th className="text-right p-4 font-medium text-sm w-[100px]">Actions</th>
+              <th className="text-right p-4 font-medium text-sm w-[150px]">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -486,21 +492,41 @@ export function CostsTable({
                       {formatCurrency(cost.paidAmount)}
                     </span>
                   </td>
-                  <td className="p-4 text-center">
-                    {hasFiles ? (
-                      <button
-                        onClick={() => handleFilesClick(cost.id)}
-                        className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-brand transition-colors"
-                      >
-                        <Paperclip className="h-4 w-4" />
-                        <span>{cost.files.length}</span>
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                  <td className="p-4">
+                    <div className="flex items-center justify-center gap-1">
+                      {hasFiles ? (
+                        <button
+                          onClick={() => handleFilesClick(cost.id)}
+                          className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-brand transition-colors"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                          <span>{cost.files.length}</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleFilesClick(cost.id)}
+                          className="flex items-center justify-center gap-1 text-sm text-muted-foreground hover:text-brand transition-colors"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                          <span className="text-xs">Add</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {cost.paymentStatus !== "paid" && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleMarkAsPaid(cost)}
+                          className="h-8 px-3"
+                          title="Mark as Paid"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                          Mark as Paid
+                        </Button>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -511,16 +537,6 @@ export function CostsTable({
                           <DropdownMenuItem onClick={() => handleStartEdit(cost, "name")}>
                             <Edit2 className="h-4 w-4 mr-2" />
                             Edit Name
-                          </DropdownMenuItem>
-                          {cost.paymentStatus !== "paid" && (
-                            <DropdownMenuItem onClick={() => handleMarkAsPaid(cost)}>
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                              Mark as Paid
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => handleFilesClick(cost.id)}>
-                            <Paperclip className="h-4 w-4 mr-2" />
-                            {hasFiles ? `Manage Files (${cost.files.length})` : "Add Files"}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleDelete(cost.id)} className="text-destructive">
@@ -536,7 +552,9 @@ export function CostsTable({
             })}
           </tbody>
         </table>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {selectedCostId && (
         <CostFilesDialog
@@ -554,4 +572,6 @@ export function CostsTable({
     </>
   );
 }
+
+
 

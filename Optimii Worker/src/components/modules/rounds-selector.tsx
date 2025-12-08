@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Plus, MoreVertical, Trash2 } from "lucide-react";
 import type { Stage } from "@/lib/db/schema";
-import { startNewRound, deleteRound } from "@/lib/actions/projects";
+import { deleteRound } from "@/lib/actions/projects";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,36 +95,40 @@ export function RoundsSelector({
                 value={round.toString()}
                 className="relative group"
               >
-                Round {round}
-                {round > 1 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-2 h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                      >
-                        <MoreVertical className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingRound(round);
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Round {round}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                <span className="flex items-center gap-2">
+                  Round {round}
+                  {round > 1 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity -mr-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingRound(round);
+                          }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Round {round}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <span className="h-4 w-4 -mr-1" aria-hidden="true" />
+                  )}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -132,15 +136,11 @@ export function RoundsSelector({
         <Button
           variant="outline"
           size="sm"
-          onClick={async () => {
-            const result = await startNewRound(stage.id);
-            if (result) {
-              // Switch to the new round immediately
-              const newRound = result.currentRound;
-              onRoundChange(newRound);
-              // Call onNewRound to trigger parent refresh
-              onNewRound();
-            }
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Let the parent component handle round creation to avoid duplicate calls
+            onNewRound();
           }}
         >
           <Plus className="mr-2 h-4 w-4" />

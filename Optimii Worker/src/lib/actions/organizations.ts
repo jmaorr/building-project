@@ -527,3 +527,64 @@ export async function cancelOrgInvite(inviteId: string): Promise<{ success: bool
         return { success: false, error: "Failed to cancel invite" };
     }
 }
+
+/**
+ * Update organization settings
+ */
+export async function updateOrganization(data: {
+    name?: string;
+    accentColor?: string;
+    logoUrl?: string;
+}): Promise<{ success: boolean; error?: string }> {
+    try {
+        const d1 = await getD1Database() as D1Database | null;
+        if (!d1) return { success: false, error: "Database not available" };
+
+        const user = await getCurrentUser();
+        if (!user) return { success: false, error: "Not authenticated" };
+
+        const activeOrg = await getActiveOrganizationSafe();
+        if (!activeOrg) return { success: false, error: "No active organization" };
+
+        const db = createDb(d1);
+
+        // Check if user is admin/owner
+        const membership = await db.select()
+            .from(organizationMembers)
+            .where(and(
+                eq(organizationMembers.orgId, activeOrg.id),
+                eq(organizationMembers.userId, user.id)
+            ))
+            .get();
+
+        if (!membership || membership.role === "member") {
+            return { success: false, error: "Only admins can update organization settings" };
+        }
+
+        // Build update object
+        const updateData: Partial<typeof organizations.$inferInsert> = {
+            updatedAt: new Date(),
+        };
+
+        if (data.name !== undefined) {
+            updateData.name = data.name;
+        }
+        if (data.accentColor !== undefined) {
+            updateData.accentColor = data.accentColor;
+        }
+        if (data.logoUrl !== undefined) {
+            updateData.logoUrl = data.logoUrl;
+        }
+
+        await db.update(organizations)
+            .set(updateData)
+            .where(eq(organizations.id, activeOrg.id));
+
+        revalidatePath("/settings");
+        revalidatePath("/");
+        return { success: true };
+    } catch (error) {
+        console.error("Error updating organization:", error);
+        return { success: false, error: "Failed to update organization" };
+    }
+}

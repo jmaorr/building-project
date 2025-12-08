@@ -72,39 +72,9 @@ export function CostSection({
   const totalActual = costs.reduce((sum, c) => sum + (c.actualAmount ?? 0), 0);
   const totalPaid = costs.reduce((sum, c) => sum + (c.paidAmount ?? 0), 0);
 
+  // Hide section if no costs exist
   if (costs.length === 0 && !isLoading) {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Costs</h3>
-        </div>
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-8">
-            <Receipt className="h-10 w-10 text-muted-foreground/50 mb-3" />
-            <p className="text-sm font-medium mb-1">No costs added</p>
-            <p className="text-xs text-muted-foreground text-center mb-4">
-              Track quotes, actuals, and payments for this stage
-            </p>
-            <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Cost
-            </Button>
-          </CardContent>
-        </Card>
-
-        <AddCostDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          projectId={projectId}
-          phaseId={phaseId}
-          defaultStageId={stage.id}
-          stageName={stage.name}
-          contacts={contacts}
-          currentUserId={currentUserId}
-          onCostCreated={handleCostCreated}
-        />
-      </div>
-    );
+    return null;
   }
 
   return (

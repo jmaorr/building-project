@@ -414,15 +414,15 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
         />
       )}
 
-      {/* Costs Section - Outside rounds, always shown */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Costs</h3>
-          <span className="text-xs text-muted-foreground">
-            {costs.length} item{costs.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-        {costs.length > 0 ? (
+      {/* Costs Section - Only shown when costs exist */}
+      {costs.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Costs</h3>
+            <span className="text-xs text-muted-foreground">
+              {costs.length} item{costs.length !== 1 ? "s" : ""}
+            </span>
+          </div>
           <CostsTable
             costs={costs}
             projectId={projectId}
@@ -430,22 +430,8 @@ export function EnhancedFilesStage({ stage, projectId, phaseId, currentUserId }:
             onCostDeleted={loadData}
             compact
           />
-        ) : (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-8">
-              <DollarSign className="h-10 w-10 text-muted-foreground/50 mb-3" />
-              <p className="text-sm font-medium mb-1">No costs added</p>
-              <p className="text-xs text-muted-foreground text-center mb-4">
-                Track quotes, actuals, and payments for this stage
-              </p>
-              <Button size="sm" onClick={() => setIsAddCostDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Cost
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Rounds Selector - Only affects Files and Comments */}
       {stage.allowsRounds && (

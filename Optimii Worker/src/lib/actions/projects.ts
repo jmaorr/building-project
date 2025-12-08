@@ -1,6 +1,7 @@
 "use server";
 
 import { eq, and, asc, desc, or, like, inArray, isNotNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { createDb, type D1Database } from "@/lib/db";
 import { 
   stages as stagesTable, 
@@ -759,10 +760,50 @@ export async function updateStage(id: string, data: Partial<Stage>): Promise<Sta
     
     if (result.length === 0) return null;
     
+    // Revalidate relevant paths
+    revalidatePath("/projects");
+    
     return result[0];
   } catch (error) {
     console.error("Error updating stage:", error);
     return null;
+  }
+}
+
+/**
+ * Delete a stage
+ * Note: Cascade deletes will handle related files, notes, approvals, etc.
+ */
+export async function deleteStage(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const d1 = await getD1Database();
+    if (!d1) {
+      return { success: false, error: "Database not available" };
+    }
+    
+    const db = createDb(d1 as D1Database);
+    
+    // Get the stage to verify it exists and get phaseId for redirect
+    const stage = await db.select()
+      .from(stagesTable)
+      .where(eq(stagesTable.id, id))
+      .get();
+    
+    if (!stage) {
+      return { success: false, error: "Stage not found" };
+    }
+    
+    // Delete the stage (cascade will handle related records)
+    await db.delete(stagesTable)
+      .where(eq(stagesTable.id, id))
+      .run();
+    
+    revalidatePath(`/projects`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting stage:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { success: false, error: `Failed to delete stage: ${errorMessage}` };
   }
 }
 
@@ -834,7 +875,10 @@ export async function updateStageStatus(
   }
 }
 
-// Track round creation in progress to prevent duplicates
+/**
+ * Track round creation in progress to prevent duplicates
+ * Using a WeakMap to avoid potential build issues with module-level Sets
+ */
 const roundCreationInProgress = new Set<string>();
 
 /**

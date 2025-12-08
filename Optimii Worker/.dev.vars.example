@@ -1,0 +1,20 @@
+# Cloudflare Worker Development Secrets
+# Copy this file to .dev.vars and fill in your actual values
+# .dev.vars is gitignored and will NOT be committed to source control
+
+# Clerk Authentication
+# Get these from: https://dashboard.clerk.com → Your App → API Keys
+CLERK_SECRET_KEY=sk_test_YOUR_SECRET_KEY_HERE
+CLERK_WEBHOOK_SECRET=whsec_YOUR_WEBHOOK_SECRET_HERE
+
+# Resend Email Service
+# Get these from: https://resend.com/api-keys
+RESEND_API_KEY=re_YOUR_API_KEY_HERE
+RESEND_FROM_EMAIL=onboarding@yourdomain.com
+
+# Cloudflare (for Drizzle migrations)
+# Get these from: https://dash.cloudflare.com
+CLOUDFLARE_ACCOUNT_ID=your_account_id_here
+CLOUDFLARE_DATABASE_ID=your_database_id_here
+CLOUDFLARE_D1_TOKEN=your_d1_api_token_here
+

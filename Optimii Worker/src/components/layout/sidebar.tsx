@@ -25,6 +25,7 @@ import {
 import { useBrandConfig } from "@/components/providers/brand-provider";
 import { ThemeToggleSidebar } from "@/components/theme-toggle-sidebar";
 import { UserButton, SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { SidebarItem } from "./sidebar-item";
 
 interface NavItem {
   title: string;
@@ -61,49 +62,85 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200",
+        "flex h-full flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200 group",
         collapsed ? "w-16" : "w-60",
         className
       )}
     >
       {/* Logo / Brand */}
-      <div className="flex h-14 items-center justify-between px-3 border-b border-sidebar-border">
-        <Link
-          href="/"
-          className={cn(
-            "flex items-center gap-2 transition-opacity",
-            collapsed && "justify-center"
-          )}
-        >
-          {brand.logoUrl ? (
-            <img
-              src={brand.logoUrl}
-              alt={brand.orgName}
-              className="h-8 w-8 rounded"
-            />
-          ) : (
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded"
-              style={{ backgroundColor: brand.accentColor }}
+      <div className="relative flex h-14 items-center border-b border-sidebar-border">
+        {collapsed ? (
+          <>
+            {/* When collapsed: Show icon centered, expand button overlays on hover */}
+            <Link
+              href="/"
+              className="flex items-center justify-center w-full h-full relative"
             >
-              <Building2 className="h-4 w-4 text-white" />
+              {brand.logoUrl ? (
+                <img
+                  src={brand.logoUrl}
+                  alt={brand.orgName}
+                  className="h-8 w-8 rounded"
+                />
+              ) : (
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded"
+                  style={{ backgroundColor: brand.accentColor }}
+                >
+                  <Building2 className="h-4 w-4 text-white" />
+                </div>
+              )}
+            </Link>
+            {/* Expand button appears on hover, overlaying the icon */}
+            {onToggleCollapse && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute inset-0 w-full h-full bg-sidebar-accent/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sidebar-foreground hover:text-sidebar-foreground z-10"
+                onClick={onToggleCollapse}
+              >
+                <ChevronLeft className="h-4 w-4 rotate-180" />
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* When expanded: Show icon, name, and collapse button */}
+            <div className="flex items-center justify-between px-3 gap-2 w-full">
+              <Link
+                href="/"
+                className="flex items-center gap-2 transition-opacity min-w-0 flex-1"
+              >
+                {brand.logoUrl ? (
+                  <img
+                    src={brand.logoUrl}
+                    alt={brand.orgName}
+                    className="h-8 w-8 rounded shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded shrink-0"
+                    style={{ backgroundColor: brand.accentColor }}
+                  >
+                    <Building2 className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                <span className="font-semibold text-sidebar-foreground truncate min-w-0">
+                  {brand.orgName}
+                </span>
+              </Link>
+              {onToggleCollapse && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground shrink-0"
+                  onClick={onToggleCollapse}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-          )}
-          {!collapsed && (
-            <span className="font-semibold text-sidebar-foreground truncate">
-              {brand.orgName}
-            </span>
-          )}
-        </Link>
-        {onToggleCollapse && !collapsed && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground"
-            onClick={onToggleCollapse}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+          </>
         )}
       </div>
 
@@ -133,181 +170,92 @@ export function Sidebar({
       {/* Main navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-1">
         {mainNav.map((item) => (
-          <NavLink
+          <SidebarItem
             key={item.href}
-            item={item}
+            icon={<item.icon className="h-4 w-4" />}
+            label={item.title}
+            badge={item.badge}
+            href={item.href}
             active={pathname === item.href}
             collapsed={collapsed}
+            tooltip={item.title}
           />
         ))}
       </nav>
 
       <Separator className="bg-sidebar-border" />
 
-      {/* Secondary navigation */}
+      {/* Secondary navigation and User actions */}
       <nav className="p-3 space-y-1">
         {secondaryNav.map((item) => (
-          <NavLink
+          <SidebarItem
             key={item.href}
-            item={item}
+            icon={<item.icon className="h-4 w-4" />}
+            label={item.title}
+            badge={item.badge}
+            href={item.href}
             active={pathname === item.href}
             collapsed={collapsed}
+            tooltip={item.title}
           />
         ))}
-      </nav>
-
-      <Separator className="bg-sidebar-border" />
-
-      <Separator className="bg-sidebar-border" />
-
-      {/* User actions: Notifications, Theme, Account */}
-      <div className="p-3 space-y-1">
-        {/* Notifications */}
-        {collapsed ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-full text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-              >
-                <Bell className="h-4 w-4" />
-                <span className="sr-only">Notifications</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Notifications</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-3"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="ml-2 flex-1 text-left text-sm">Notifications</span>
-          </Button>
-        )}
+        
+        {/* User actions: Notifications, Theme, Account */}
+        <SidebarItem
+          icon={<Bell className="h-4 w-4" />}
+          label="Notifications"
+          collapsed={collapsed}
+          tooltip="Notifications"
+        />
 
         {/* Theme Toggle */}
         {collapsed ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <ThemeToggleSidebar />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right">Theme</TooltipContent>
-          </Tooltip>
+          <SidebarItem
+            collapsed={collapsed}
+            tooltip="Theme"
+            children={<ThemeToggleSidebar />}
+          />
         ) : (
           <ThemeToggleSidebar asMenuItem />
         )}
 
         {/* User Account */}
-        {collapsed ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <SignedIn>
-                  <UserButton
-                    afterSignOutUrl="/sign-in"
-                    appearance={{
-                      elements: {
-                        avatarBox: "h-8 w-8",
-                        userButtonPopoverCard: "shadow-lg",
+        <SidebarItem
+          collapsed={collapsed}
+          tooltip="Account"
+          children={
+            <>
+              <SignedIn>
+                <UserButton
+                  afterSignOutUrl="/sign-in"
+                  appearance={{
+                    elements: {
+                      avatarBox: {
+                        width: collapsed ? "1.25rem" : "1rem",
+                        height: collapsed ? "1.25rem" : "1rem",
+                        minWidth: collapsed ? "1.25rem" : "1rem",
                       },
-                    }}
-                  />
-                </SignedIn>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <span className="text-xs">SI</span>
-                    </Button>
-                  </SignInButton>
-                </SignedOut>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right">Account</TooltipContent>
-          </Tooltip>
-        ) : (
-          <div className="flex items-center gap-3 rounded-md px-3 py-2">
-            <SignedIn>
-              <UserButton
-                afterSignOutUrl="/sign-in"
-                appearance={{
-                  elements: {
-                    avatarBox: "h-8 w-8",
-                    userButtonPopoverCard: "shadow-lg",
-                  },
-                }}
-              />
-              <span className="text-sm font-medium text-sidebar-foreground/70">Account</span>
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="ghost" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent">
-                  <span className="text-sm">Sign in</span>
-                </Button>
-              </SignInButton>
-            </SignedOut>
-          </div>
-        )}
-      </div>
+                      userButtonPopoverCard: "shadow-lg",
+                    },
+                  }}
+                />
+              </SignedIn>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button variant="ghost" size="icon" className={collapsed ? "h-5 w-5" : "h-4 w-4"} aria-label="Sign in">
+                    <span className={collapsed ? "text-[10px]" : "text-[10px]"}>SI</span>
+                  </Button>
+                </SignInButton>
+              </SignedOut>
+              {!collapsed && <span className="text-sm flex-1">Account</span>}
+            </>
+          }
+        />
+      </nav>
     </aside>
   );
 }
 
-interface NavLinkProps {
-  item: NavItem;
-  active: boolean;
-  collapsed: boolean;
-}
-
-function NavLink({ item, active, collapsed }: NavLinkProps) {
-  const Icon = item.icon;
-
-  const linkContent = (
-    <Link
-      href={item.href}
-      className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-        collapsed && "justify-center px-2"
-      )}
-    >
-      <Icon className="h-4 w-4 shrink-0" />
-      {!collapsed && (
-        <>
-          <span className="flex-1">{item.title}</span>
-          {item.badge && (
-            <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-brand-foreground">
-              {item.badge}
-            </span>
-          )}
-        </>
-      )}
-    </Link>
-  );
-
-  if (collapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-        <TooltipContent side="right" className="flex items-center gap-2">
-          {item.title}
-          {item.badge && (
-            <span className="rounded-full bg-brand px-2 py-0.5 text-xs text-brand-foreground">
-              {item.badge}
-            </span>
-          )}
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return linkContent;
-}
 
 
 

@@ -59,6 +59,7 @@ export function EnhancedFilesModule({ stage, projectId, phaseId, currentUserId }
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewFile, setPreviewFile] = useState<FileType | null>(null);
   const [statusChangeMessage, setStatusChangeMessage] = useState<string | null>(null);
+  const [isCreatingRound, setIsCreatingRound] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user: clerkUser } = useUser();
 
@@ -169,13 +170,25 @@ export function EnhancedFilesModule({ stage, projectId, phaseId, currentUserId }
   };
 
   const handleNewRound = async () => {
-    const updatedStage = await startNewRound(stage.id);
-    if (updatedStage) {
-      // Set the new round and switch to it immediately
-      setCurrentRound(updatedStage.currentRound);
-      // Refresh router to get updated stage data
-      router.refresh();
-      // Load data will be triggered by the useEffect when currentRound changes
+    // Prevent duplicate round creation
+    if (isCreatingRound) {
+      return;
+    }
+
+    setIsCreatingRound(true);
+    try {
+      const updatedStage = await startNewRound(stage.id);
+      if (updatedStage) {
+        // Set the new round and switch to it immediately
+        setCurrentRound(updatedStage.currentRound);
+        // Refresh router to get updated stage data
+        router.refresh();
+        // Load data will be triggered by the useEffect when currentRound changes
+      }
+    } catch (error) {
+      console.error("Failed to create new round:", error);
+    } finally {
+      setIsCreatingRound(false);
     }
   };
 

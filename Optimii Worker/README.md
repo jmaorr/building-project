@@ -28,28 +28,24 @@ cd optimii
 npm install
 ```
 
-2. Set up environment variables. Create a `.env.local` file:
+2. Set up your local development secrets:
 
 ```bash
-# Clerk Authentication
-# Get these from https://dashboard.clerk.com
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
+# Copy the example file
+cp .dev.vars.example .dev.vars
 
-# Clerk redirect URLs
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
+# Edit .dev.vars with your actual secret values (see Secrets Management section below)
 ```
 
 3. Start the development server:
 
 ```bash
-npm run dev
+npm run preview  # For Cloudflare Workers preview (recommended)
+# or
+npm run dev      # For Next.js dev server
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+4. Open [http://localhost:8788](http://localhost:8788) (Wrangler preview) or [http://localhost:3000](http://localhost:3000) (Next.js dev) in your browser.
 
 ## Project Structure
 
@@ -127,6 +123,73 @@ npm run db:migrate   # Run migrations
 npm run db:studio    # Open Drizzle Studio
 ```
 
+## Secrets Management
+
+### Local Development
+
+All sensitive credentials are stored in `.dev.vars` (gitignored) for local development:
+
+1. **Copy the template:**
+   ```bash
+   cp .dev.vars.example .dev.vars
+   ```
+
+2. **Get your secrets from each service:**
+   - **Clerk:** https://dashboard.clerk.com → Your App → API Keys
+     - `CLERK_SECRET_KEY` (starts with `sk_test_` or `sk_live_`)
+     - `CLERK_WEBHOOK_SECRET` (in Webhooks tab, starts with `whsec_`)
+   - **Resend:** https://resend.com/api-keys
+     - `RESEND_API_KEY` (starts with `re_`)
+     - `RESEND_FROM_EMAIL` (your verified sender email)
+   - **Cloudflare:** https://dash.cloudflare.com
+     - `CLOUDFLARE_ACCOUNT_ID` (in URL or right sidebar)
+     - `CLOUDFLARE_DATABASE_ID` (Workers & Pages → D1 → your database)
+     - `CLOUDFLARE_D1_TOKEN` (My Profile → API Tokens → Create Token)
+
+3. **Edit `.dev.vars`** and paste your actual secret values
+
+4. **Run the preview server:**
+   ```bash
+   npm run preview
+   ```
+
+### Production Deployment
+
+For production, secrets are stored securely in Cloudflare (not in files or git):
+
+1. **Set each secret using Wrangler CLI:**
+   ```bash
+   wrangler secret put CLERK_SECRET_KEY
+   # Wrangler will prompt: "Enter a secret value:" - paste your secret
+   
+   wrangler secret put CLERK_WEBHOOK_SECRET
+   wrangler secret put RESEND_API_KEY
+   wrangler secret put RESEND_FROM_EMAIL
+   ```
+
+2. **Verify secrets are set:**
+   ```bash
+   wrangler secret list
+   ```
+
+3. **Deploy your app:**
+   ```bash
+   npm run build:cloudflare
+   npm run deploy
+   ```
+
+### Updating Secrets
+
+- **Local:** Edit `.dev.vars` and restart your dev server
+- **Production:** Run `wrangler secret put SECRET_NAME` again with the new value
+
+### Security Notes
+
+- ✅ `.dev.vars` is gitignored and never committed
+- ✅ Production secrets are encrypted in Cloudflare
+- ✅ Publishable keys (in `wrangler.toml`) are safe to commit
+- ❌ Never commit secret keys (those starting with `sk_`, `re_`, `whsec_`, etc.)
+
 ## Deployment to Cloudflare
 
 1. Create a D1 database:
@@ -137,9 +200,7 @@ npx wrangler d1 create optimii-db
 
 2. Update `wrangler.toml` with your database ID.
 
-3. Set environment variables in Cloudflare dashboard:
-   - `CLERK_SECRET_KEY`
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+3. Set production secrets (see Secrets Management section above).
 
 4. Deploy:
 

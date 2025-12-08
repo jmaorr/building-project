@@ -25,13 +25,13 @@ export function ThemeToggleSidebar({ asMenuItem = false }: ThemeToggleSidebarPro
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-3"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-3 gap-3"
           >
             <div className="relative h-4 w-4 shrink-0">
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute inset-0 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </div>
-            <span className="ml-2 flex-1 text-left text-sm">Theme</span>
+            <span className="flex-1 text-left text-sm">Theme</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="right">
@@ -55,7 +55,7 @@ export function ThemeToggleSidebar({ asMenuItem = false }: ThemeToggleSidebarPro
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent">
+        <Button variant="ghost" size="icon" className="w-full text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent">
           <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
           <span className="sr-only">Toggle theme</span>
